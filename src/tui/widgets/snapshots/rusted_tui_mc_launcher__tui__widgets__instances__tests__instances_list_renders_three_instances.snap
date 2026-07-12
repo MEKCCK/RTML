@@ -1,0 +1,16 @@
+---
+source: src/tui/widgets/instances.rs
+expression: terminal.backend()
+---
+"╭实例列表──────────────────────────────╮" Hidden by multi-width symbols: [(2, " "), (4, " "), (6, " "), (8, " ")]
+"│▌ Vanilla 1.20.1                      ▲"
+"│▌ 从未启动                            ║" Hidden by multi-width symbols: [(4, " "), (6, " "), (8, " "), (10, " ")]
+"│  Forge Pack                          ║"
+"│  从未启动                            ║" Hidden by multi-width symbols: [(4, " "), (6, " "), (8, " "), (10, " ")]
+"│  Fabric Test                         ║"
+"│  从未启动                            ║" Hidden by multi-width symbols: [(4, " "), (6, " "), (8, " "), (10, " ")]
+"│                                      ║"
+"│                                      ║"
+"│                                      │"
+"│                                      ▼"
+"╰──────────────────────────────────────╯"

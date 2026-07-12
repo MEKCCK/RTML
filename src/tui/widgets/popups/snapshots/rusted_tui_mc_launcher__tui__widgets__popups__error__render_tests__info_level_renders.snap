@@ -1,0 +1,9 @@
+---
+source: src/tui/widgets/popups/error.rs
+expression: term.backend()
+---
+"╭ 信息 ────────────────────────────────╮" Hidden by multi-width symbols: [(3, " "), (5, " ")]
+"│Reloaded config                       │"
+"│                                      │"
+"│                                      │"
+"╰──────────────────────────────────────╯"

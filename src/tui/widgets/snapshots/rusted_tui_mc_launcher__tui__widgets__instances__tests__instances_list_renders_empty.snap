@@ -1,0 +1,12 @@
+---
+source: src/tui/widgets/instances.rs
+expression: terminal.backend()
+---
+"╭实例列表──────────────────────────────╮" Hidden by multi-width symbols: [(2, " "), (4, " "), (6, " "), (8, " ")]
+"│                                      │"
+"│                                      │"
+"│                                      │"
+"│                                      │"
+"│                                      │"
+"│                                      │"
+"╰──────────────────────────────────────╯"

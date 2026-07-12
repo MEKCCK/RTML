@@ -1,0 +1,9 @@
+---
+source: src/tui/widgets/popups/error.rs
+expression: term.backend()
+---
+"╭ 警告 ────────────────────────────────╮" Hidden by multi-width symbols: [(3, " "), (5, " ")]
+"│Disk space low                        │"
+"│                                      │"
+"│                                      │"
+"╰──────────────────────────────────────╯"
