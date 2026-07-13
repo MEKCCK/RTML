@@ -30,8 +30,8 @@ cargo build --release
 
 | 平台 | 脚本 | 用法 |
 |------|------|------|
-| Arch Linux | `PKGBUILD` | `makepkg` |
-| Windows | `build.bat` | 双击或终端运行 |
+| Arch Linux | `scripts/PKGBUILD` | `makepkg` |
+| Windows | `scripts/build.bat` | 双击或终端运行 |
 
 ## 快捷键
 
