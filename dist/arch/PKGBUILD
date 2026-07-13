@@ -7,17 +7,22 @@ arch=('x86_64')
 url="https://github.com/MEKCCK/RTML"
 license=('GPL3')
 depends=('gcc-libs' 'java-runtime>=17')
-source=("$pkgname-$pkgver.tar.gz")
+makedepends=('cargo')
+source=("$pkgname-$pkgver.tar.gz::https://github.com/MEKCCK/RTML/archive/v$pkgver.tar.gz")
 sha256sums=('SKIP')
 
+build() {
+    cd "$srcdir/RTML-$pkgver"
+    cargo build --release --frozen
+}
+
 package() {
-    install -Dm755 "$srcdir"/rtml "$pkgdir"/usr/bin/rtml
-    install -Dm644 "$srcdir"/rtml.desktop \
-      "$pkgdir"/usr/share/applications/rtml.desktop
-    install -Dm644 "$srcdir"/icon-256.png \
-      "$pkgdir"/usr/share/icons/hicolor/256x256/apps/rtml.png
-    install -Dm644 "$srcdir"/icon-512.png \
-      "$pkgdir"/usr/share/icons/hicolor/512x512/apps/rtml.png
-    install -Dm644 "$srcdir"/LICENSE \
-      "$pkgdir"/usr/share/licenses/$pkgname/LICENSE
+    cd "$srcdir/RTML-$pkgver"
+    install -Dm755 target/release/rtml "$pkgdir/usr/bin/rtml"
+    install -Dm644 assets/rtml.desktop "$pkgdir/usr/share/applications/rtml.desktop"
+    install -Dm644 assets/icon.png \
+      "$pkgdir/usr/share/icons/hicolor/256x256/apps/rtml.png"
+    install -Dm644 assets/icon.png \
+      "$pkgdir/usr/share/icons/hicolor/512x512/apps/rtml.png"
+    install -Dm644 LICENSE "$pkgdir/usr/share/licenses/$pkgname/LICENSE"
 }
