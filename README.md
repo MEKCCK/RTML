@@ -26,6 +26,13 @@ cargo build --release
 
 **依赖**: Rust 1.85+ (edition 2024)、Java（运行 Minecraft）
 
+## 打包
+
+| 平台 | 脚本 | 用法 |
+|------|------|------|
+| Arch Linux | `PKGBUILD` | `makepkg` |
+| Windows | `build.bat` | 双击或终端运行 |
+
 ## 快捷键
 
 | 按键 | 功能 |

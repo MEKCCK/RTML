@@ -18,8 +18,8 @@
 
 | 文件 | 说明 |
 |------|------|
-| `rtml-0.1.0-x86_64-windows.exe` | Windows 可执行文件（`dist/windows/build.ps1` 构建） |
-| `rtml-0.1.0-2-x86_64.pkg.tar.zst` | Arch Linux 包（`dist/arch/PKGBUILD` 构建） |
+| `rtml-0.1.0-x86_64-windows.exe` | Windows 可执行文件（`build.bat` 构建） |
+| `rtml-0.1.0-2-x86_64.pkg.tar.zst` | Arch Linux 包（`PKGBUILD` 构建） |
 
 ### 构建方式
 
