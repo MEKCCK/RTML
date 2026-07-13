@@ -1,0 +1,23 @@
+# Maintainer: MEKCCK <3504638270@qq.com>
+pkgname=rtml
+pkgver=0.1.0
+pkgrel=2
+pkgdesc="RTML - Rust TUI Minecraft Launcher"
+arch=('x86_64')
+url="https://github.com/MEKCCK/RTML"
+license=('GPL3')
+depends=('gcc-libs' 'java-runtime>=17')
+source=("$pkgname-$pkgver.tar.gz")
+sha256sums=('SKIP')
+
+package() {
+    install -Dm755 "$srcdir"/rtml "$pkgdir"/usr/bin/rtml
+    install -Dm644 "$srcdir"/rtml.desktop \
+      "$pkgdir"/usr/share/applications/rtml.desktop
+    install -Dm644 "$srcdir"/icon-256.png \
+      "$pkgdir"/usr/share/icons/hicolor/256x256/apps/rtml.png
+    install -Dm644 "$srcdir"/icon-512.png \
+      "$pkgdir"/usr/share/icons/hicolor/512x512/apps/rtml.png
+    install -Dm644 "$srcdir"/LICENSE \
+      "$pkgdir"/usr/share/licenses/$pkgname/LICENSE
+}
