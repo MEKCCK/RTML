@@ -1,4 +1,4 @@
-# RTML - Rust TUI Minecraft Launcher
+本项目 RustedTuiMcLauncher (RTML) 基于 rmcl 项目开发
 
 一个用 Rust 编写的终端用户界面 (TUI) Minecraft 启动器，支持 BMCLAPI 镜像加速。
 
