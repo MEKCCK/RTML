@@ -1,3 +1,10 @@
+// RTML - Rust TUI Minecraft Launcher
+// Copyright (C) 2026 RTML Contributors
+// SPDX-License-Identifier: GPL-3.0-or-later
+//
+// This is a modified version of rmcl (https://github.com/objz/rmcl).
+// Modifications made in 2026.
+
 // neoforge installation. same java installer dance as forge (they forked from it,
 // after all), just with different URLs and version naming.
 

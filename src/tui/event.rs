@@ -1,3 +1,10 @@
+// RTML - Rust TUI Minecraft Launcher
+// Copyright (C) 2026 RTML Contributors
+// SPDX-License-Identifier: GPL-3.0-or-later
+//
+// This is a modified version of rmcl (https://github.com/objz/rmcl).
+// Modifications made in 2026.
+
 use color_eyre::eyre::Context;
 use crossterm::event::{self, Event};
 use ratatui::crossterm::event::KeyEventKind;
@@ -5,10 +12,12 @@ use std::time::Duration;
 
 use super::Tui;
 use super::app::{App, PENDING_INSTANCES};
-use super::widgets::{self, popups::import_modpack, popups::new_instance};
+use super::widgets::{self, popups::new_instance};
 use crate::instance::InstanceManager;
 use crate::tui::error_buffer;
 use crate::tui::progress;
+
+use crate::instance::content::install;
 
 impl App {
     /// main loop: poll async results and input at ~60Hz, drawing only when state changes
@@ -23,8 +32,12 @@ impl App {
                 self.spawn_create(params);
             }
 
-            if let Some(result) = import_modpack::take_result() {
-                self.spawn_import(result);
+            if let Some(params) = widgets::popups::mod_download::take_result() {
+                self.spawn_mod_download(params);
+            }
+
+            if let Some(_params) = widgets::popups::import_modpack::take_result() {
+                self.refresh_instances();
             }
 
             self.dismiss_expired_errors();
@@ -111,6 +124,65 @@ impl App {
         }
     }
 
+    fn spawn_mod_download(&self, params: widgets::popups::mod_download::InstallParams) {
+        let Some(instance) = self.instances_state.selected_instance().cloned() else {
+            return;
+        };
+        let instances_dir = self.instance_manager.instances_dir.clone();
+
+        let fname = params.filename.clone();
+        tokio::spawn(async move {
+            progress::set_action(format!("正在下载 {}...", fname));
+            let mc_dir = instances_dir.join(&instance.name).join(".minecraft");
+            let on_progress = |downloaded: u64, total: u64| {
+                let pct = if total > 0 {
+                    (downloaded as f64 / total as f64 * 100.0) as u32
+                } else {
+                    0
+                };
+                progress::set_action(format!("正在下载 {}... {}%", fname, pct));
+            };
+            match crate::net::modrinth::download_mod_file(
+                &params.file_url,
+                &params.filename,
+                &mc_dir,
+                params.sha1_hash.as_deref(),
+                Some(&on_progress),
+            )
+            .await
+            {
+                Ok(path) => {
+                    let _ = install::record_install(
+                        &instances_dir,
+                        &instance.name,
+                        &params.filename,
+                        &params.slug,
+                        Some(&params.version_id),
+                        "mod",
+                        "modrinth",
+                    );
+                    tracing::info!("Mod installed: {}", path);
+                    crate::tui::request_redraw();
+                }
+                Err(e) => {
+                    error_buffer::push_error(error_buffer::ErrorEvent {
+                        id: 0,
+                        level: tracing::Level::ERROR,
+                        message: format!("Mod 下载失败 '{}': {e}", params.filename),
+                        pushed_at: std::time::Instant::now(),
+                    });
+                }
+            }
+            progress::clear();
+        });
+    }
+
+    fn refresh_instances(&mut self) {
+        let instances = self.instance_manager.load_all();
+        self.instances_state.instances = instances;
+        self.instances_state.update_scrollbar();
+    }
+
     fn spawn_create(&self, params: new_instance::WizardParams) {
         let instances_dir = self.instance_manager.instances_dir.clone();
         let meta_dir = crate::config::SETTINGS.paths.resolve_meta_dir();
@@ -142,33 +214,6 @@ impl App {
                         id: 0,
                         level: tracing::Level::ERROR,
                         message: format!("Failed to create instance '{}': {e}", params.name),
-                        pushed_at: std::time::Instant::now(),
-                    });
-                }
-            }
-        });
-    }
-
-    fn spawn_import(&self, result: import_modpack::ImportResult) {
-        let instances_dir = self.instance_manager.instances_dir.clone();
-        let meta_dir = crate::config::SETTINGS.paths.resolve_meta_dir();
-        let pending_instances = PENDING_INSTANCES.clone();
-
-        tokio::spawn(async move {
-            let manager = InstanceManager::new(instances_dir, meta_dir);
-            match crate::instance::import::execute_import(&result.summary, &manager).await {
-                Ok(config) => {
-                    if let Ok(mut pending) = pending_instances.lock() {
-                        pending.push(config);
-                        crate::tui::request_redraw();
-                    }
-                }
-                Err(e) => {
-                    crate::tui::progress::clear();
-                    error_buffer::push_error(error_buffer::ErrorEvent {
-                        id: 0,
-                        level: tracing::Level::ERROR,
-                        message: format!("Import failed: {e}"),
                         pushed_at: std::time::Instant::now(),
                     });
                 }

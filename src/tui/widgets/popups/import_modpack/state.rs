@@ -1,66 +1,59 @@
-// state machine for the modpack import wizard.
-// accepts modrinth URLs, project slugs, version IDs, or local pack archives
-// (.mrpack, mmc/prism zips). remote packs go through version selection,
-// local files skip straight to the confirm step.
+// RTML - Rust TUI Minecraft Launcher
+// Copyright (C) 2026 RTML Contributors
+// SPDX-License-Identifier: GPL-3.0-or-later
+//
+// This is a modified version of rmcl (https://github.com/objz/rmcl).
+// Modifications made in 2026.
 
-use super::super::new_instance::LoadState;
-use crate::instance::import::{ImportInput, ImportSummary, parse_import_input};
-use crate::net::modrinth::{self, VersionInfo};
-use crate::tui::widgets::instances;
-use crate::tui::widgets::search::SearchState;
-use crossterm::event::{KeyCode, KeyEvent};
 use std::sync::LazyLock;
 use std::sync::{Arc, Mutex};
-use std::time::Instant;
-use tracing::Level;
 
-pub(super) static IMPORT_STATE: LazyLock<Arc<Mutex<ImportWizardState>>> =
-    LazyLock::new(|| Arc::new(Mutex::new(ImportWizardState::default())));
-pub(super) static IMPORT_RESULT: LazyLock<Arc<Mutex<Option<ImportResult>>>> =
+use crate::instance::import::ModpackFormat;
+use crate::tui::widgets::instances;
+use crossterm::event::{KeyCode, KeyEvent};
+
+pub(crate) static IMPORT_STATE: LazyLock<Arc<Mutex<ImportState>>> =
+    LazyLock::new(|| Arc::new(Mutex::new(ImportState::default())));
+
+pub(crate) static IMPORT_RESULT: LazyLock<Arc<Mutex<Option<ImportParams>>>> =
     LazyLock::new(|| Arc::new(Mutex::new(None)));
 
 #[derive(Debug, Clone)]
-pub struct ImportResult {
-    pub summary: ImportSummary,
+pub struct ImportParams {
+    pub path: String,
 }
 
-#[derive(Debug, Default, Clone, PartialEq)]
+#[derive(Debug, Clone, Default)]
 pub enum ImportStep {
     #[default]
-    Input,
-    Fetching,
-    Version,
+    Path,
+    Detecting,
     Confirm,
+    Importing,
+    Done(String),
+    Error(String),
 }
 
 #[derive(Debug, Clone)]
-pub struct ImportWizardState {
+pub struct ImportState {
     pub step: ImportStep,
-    pub input: String,
-    pub project_title: Option<String>,
-    pub versions: LoadState<Vec<VersionInfo>>,
-    pub version_idx: usize,
-    pub version_search: SearchState,
-    pub summary: Option<ImportSummary>,
+    pub path: String,
+    pub detected_format: Option<ModpackFormat>,
 }
 
-impl Default for ImportWizardState {
+impl Default for ImportState {
     fn default() -> Self {
         Self {
-            step: ImportStep::Input,
-            input: String::new(),
-            project_title: None,
-            versions: LoadState::Idle,
-            version_idx: 0,
-            version_search: SearchState::default(),
-            summary: None,
+            step: ImportStep::Path,
+            path: String::new(),
+            detected_format: None,
         }
     }
 }
 
-impl ImportWizardState {
+impl ImportState {
     pub fn reset(&mut self) {
-        *self = ImportWizardState::default();
+        *self = Self::default();
     }
 }
 
@@ -75,393 +68,118 @@ pub fn handle_key(key_event: &KeyEvent, instances_state: &mut instances::State) 
     };
 
     match state.step {
-        ImportStep::Input => handle_input_key(&mut state, key_event, instances_state),
-        ImportStep::Fetching => handle_fetching_key(&mut state, key_event, instances_state),
-        ImportStep::Version => handle_version_key(&mut state, key_event, instances_state),
+        ImportStep::Path => handle_path_key(&mut state, key_event, instances_state),
+        ImportStep::Detecting => {}
         ImportStep::Confirm => handle_confirm_key(&mut state, key_event, instances_state),
+        ImportStep::Importing => {}
+        ImportStep::Done(_) | ImportStep::Error(_) => handle_done_key(&mut state, key_event, instances_state),
     }
 }
 
-pub fn take_result() -> Option<ImportResult> {
+pub fn take_result() -> Option<ImportParams> {
     match IMPORT_RESULT.lock() {
         Ok(mut r) => r.take(),
         Err(_) => None,
     }
 }
 
-fn handle_input_key(
-    state: &mut ImportWizardState,
+fn handle_path_key(
+    state: &mut ImportState,
     key_event: &KeyEvent,
     instances_state: &mut instances::State,
 ) {
     match key_event.code {
         KeyCode::Esc => close_popup(state, instances_state),
-        KeyCode::Backspace => {
-            state.input.pop();
-        }
         KeyCode::Enter => {
-            if state.input.trim().is_empty() {
+            if state.path.trim().is_empty() {
                 return;
             }
-            start_resolve(state);
+            let path = state.path.trim().to_string();
+            state.detected_format = Some(
+                std::path::Path::new(&path)
+                    .extension()
+                    .and_then(|e| e.to_str())
+                    .map(|e| match e.to_lowercase().as_str() {
+                        "mrpack" => ModpackFormat::MrPack,
+                        "zip" => match crate::instance::import::detect_modpack_format(&path) {
+                            Ok(f) => f,
+                            Err(_) => ModpackFormat::Unknown,
+                        },
+                        _ => ModpackFormat::Unknown,
+                    })
+                    .unwrap_or(ModpackFormat::Unknown),
+            );
+
+            state.step = ImportStep::Confirm;
+        }
+        KeyCode::Backspace => {
+            state.path.pop();
         }
         KeyCode::Char(c) => {
-            state.input.push(c);
-        }
-        _ => {}
-    }
-}
-
-fn handle_fetching_key(
-    state: &mut ImportWizardState,
-    key_event: &KeyEvent,
-    instances_state: &mut instances::State,
-) {
-    if key_event.code == KeyCode::Esc {
-        close_popup(state, instances_state);
-    }
-}
-
-fn handle_version_key(
-    state: &mut ImportWizardState,
-    key_event: &KeyEvent,
-    instances_state: &mut instances::State,
-) {
-    if state.version_search.active {
-        match key_event.code {
-            KeyCode::Esc => {
-                state.version_search.deactivate();
-                clamp_version_index(state);
-                return;
-            }
-            KeyCode::Backspace => {
-                state.version_search.pop();
-                clamp_version_index(state);
-                return;
-            }
-            KeyCode::Char('j') | KeyCode::Down => {}
-            KeyCode::Char('k') | KeyCode::Up => {}
-            KeyCode::Enter => {
-                state.version_search.active = false;
-                return;
-            }
-            KeyCode::Char(c) => {
-                state.version_search.push(c);
-                state.version_idx = 0;
-                return;
-            }
-            _ => {}
-        }
-    }
-
-    let visible_count = visible_versions(state).len();
-
-    match key_event.code {
-        KeyCode::Esc => close_popup(state, instances_state),
-        KeyCode::Left | KeyCode::Char('h') if !state.version_search.active => {
-            state.step = ImportStep::Input;
-            state.versions = LoadState::Idle;
-            state.version_idx = 0;
-            state.version_search.deactivate();
-        }
-        KeyCode::Char('j') | KeyCode::Down if visible_count > 0 => {
-            state.version_idx = (state.version_idx + 1).min(visible_count.saturating_sub(1));
-        }
-        KeyCode::Char('k') | KeyCode::Up => {
-            state.version_idx = state.version_idx.saturating_sub(1);
-        }
-        KeyCode::Char('/') if !state.version_search.active => {
-            state.version_search.activate();
-            state.version_idx = 0;
-        }
-        KeyCode::Enter if !state.version_search.active => {
-            let selected = selected_version(state);
-            if selected.is_none() {
-                return;
-            }
-            start_version_download(state);
+            state.path.push(c);
         }
         _ => {}
     }
 }
 
 fn handle_confirm_key(
-    state: &mut ImportWizardState,
+    state: &mut ImportState,
     key_event: &KeyEvent,
     instances_state: &mut instances::State,
 ) {
     match key_event.code {
         KeyCode::Esc => close_popup(state, instances_state),
-        // if it came from a local file, there's no version list to go back to
         KeyCode::Left | KeyCode::Char('h') => {
-            if matches!(state.versions, LoadState::Loaded(_)) {
-                state.step = ImportStep::Version;
-            } else {
-                state.step = ImportStep::Input;
-            }
+            state.step = ImportStep::Path;
         }
         KeyCode::Enter => {
-            let summary = match state.summary.take() {
-                Some(s) => s,
-                None => return,
-            };
+            let path = state.path.trim().to_string();
+            state.step = ImportStep::Importing;
 
-            match IMPORT_RESULT.lock() {
-                Ok(mut result) => {
-                    *result = Some(ImportResult { summary });
-                }
-                Err(e) => {
-                    tracing::error!("Import result lock poisoned: {}", e);
-                }
-            }
+            let state_arc = IMPORT_STATE.clone();
+            let result_arc = IMPORT_RESULT.clone();
 
-            close_popup(state, instances_state);
+            tokio::spawn(async move {
+                let instances_dir = crate::config::SETTINGS.paths.resolve_instances_dir();
+                let meta_dir = crate::config::SETTINGS.paths.resolve_meta_dir();
+                let result = crate::instance::import::import_modpack_auto(
+                    &path,
+                    &instances_dir,
+                    &meta_dir,
+                    None,
+                )
+                .await;
+
+                match result {
+                    Ok(instance) => {
+                        if let Ok(mut r) = result_arc.lock() {
+                            *r = Some(ImportParams { path });
+                        }
+                        if let Ok(mut s) = state_arc.lock() {
+                            s.step = ImportStep::Done(format!("实例 '{}' 导入成功", instance.name));
+                        }
+                    }
+                    Err(e) => {
+                        if let Ok(mut s) = state_arc.lock() {
+                            s.step = ImportStep::Error(format!("导入失败: {e}"));
+                        }
+                    }
+                }
+            });
         }
         _ => {}
     }
 }
 
-// pushes an error toast and rewinds the wizard to a previous step
-fn set_error_and_back(state_arc: &Arc<Mutex<ImportWizardState>>, msg: String, step: ImportStep) {
-    push_import_error(msg);
-    if let Ok(mut s) = state_arc.lock() {
-        s.step = step;
-    }
-}
-
-// parses user input to figure out what they gave us, then dispatches
-// to the appropriate resolve path (slug lookup, direct version, or local file)
-fn start_resolve(state: &mut ImportWizardState) {
-    let input_text = state.input.clone();
-    state.step = ImportStep::Fetching;
-
-    let state_arc = IMPORT_STATE.clone();
-
-    tokio::spawn(async move {
-        let client = crate::net::HttpClient::new();
-        let parsed = parse_import_input(&input_text);
-
-        match parsed {
-            ImportInput::ProjectSlug(slug) => {
-                resolve_project_slug(state_arc, &client, &slug).await;
-            }
-            ImportInput::VersionId {
-                slug: _,
-                version_id,
-            } => {
-                resolve_version_id(state_arc, &client, &version_id).await;
-            }
-            ImportInput::LocalFile(path) => {
-                resolve_local_file(state_arc, &path);
-            }
-        }
-    });
-}
-
-async fn resolve_project_slug(
-    state_arc: Arc<Mutex<ImportWizardState>>,
-    client: &crate::net::HttpClient,
-    slug: &str,
+fn handle_done_key(
+    state: &mut ImportState,
+    _key_event: &KeyEvent,
+    instances_state: &mut instances::State,
 ) {
-    match modrinth::fetch_project(client, slug).await {
-        Ok(project) => match modrinth::fetch_versions(client, slug, None, None).await {
-            Ok(versions) => {
-                if let Ok(mut s) = state_arc.lock() {
-                    s.project_title = Some(project.title);
-                    s.versions = LoadState::Loaded(versions);
-                    s.version_idx = 0;
-                    s.version_search.deactivate();
-                    s.step = ImportStep::Version;
-                }
-            }
-            Err(e) => set_error_and_back(
-                &state_arc,
-                format!("Failed to fetch versions: {}", e),
-                ImportStep::Input,
-            ),
-        },
-        Err(e) => set_error_and_back(
-            &state_arc,
-            format!("Failed to fetch project: {}", e),
-            ImportStep::Input,
-        ),
-    }
+    close_popup(state, instances_state);
 }
 
-async fn resolve_version_id(
-    state_arc: Arc<Mutex<ImportWizardState>>,
-    client: &crate::net::HttpClient,
-    version_id: &str,
-) {
-    match modrinth::fetch_version(client, version_id).await {
-        Ok(version) => {
-            let meta_dir = crate::config::SETTINGS.paths.resolve_meta_dir();
-            let tmp_dir = meta_dir.join("tmp");
-            if let Err(e) = tokio::fs::create_dir_all(&tmp_dir).await {
-                set_error_and_back(
-                    &state_arc,
-                    format!("Failed to create tmp dir: {}", e),
-                    ImportStep::Input,
-                );
-                return;
-            }
-
-            match modrinth::download_mrpack(client, &version, &tmp_dir).await {
-                Ok(mrpack_path) => match crate::instance::import::build_summary(&mrpack_path) {
-                    Ok(summary) => {
-                        if let Ok(mut s) = state_arc.lock() {
-                            s.summary = Some(summary);
-                            s.step = ImportStep::Confirm;
-                        }
-                    }
-                    Err(e) => set_error_and_back(
-                        &state_arc,
-                        format!("Failed to build summary: {}", e),
-                        ImportStep::Input,
-                    ),
-                },
-                Err(e) => set_error_and_back(
-                    &state_arc,
-                    format!("Failed to download mrpack: {}", e),
-                    ImportStep::Input,
-                ),
-            }
-        }
-        Err(e) => set_error_and_back(
-            &state_arc,
-            format!("Failed to fetch version: {}", e),
-            ImportStep::Input,
-        ),
-    }
-}
-
-fn resolve_local_file(state_arc: Arc<Mutex<ImportWizardState>>, path: &str) {
-    let resolved = crate::config::settings::resolve_path(path);
-
-    match crate::instance::import::build_summary(&resolved) {
-        Ok(summary) => {
-            if let Ok(mut s) = state_arc.lock() {
-                s.summary = Some(summary);
-                s.step = ImportStep::Confirm;
-            }
-        }
-        Err(e) => set_error_and_back(
-            &state_arc,
-            format!("Failed to parse pack: {}", e),
-            ImportStep::Input,
-        ),
-    }
-}
-
-// user picked a version from the list. download the .mrpack,
-// build a summary, and move to confirm.
-fn start_version_download(state: &mut ImportWizardState) {
-    let version = match selected_version(state) {
-        Some(v) => v.clone(),
-        None => return,
-    };
-
-    state.step = ImportStep::Fetching;
-
-    let state_arc = IMPORT_STATE.clone();
-
-    tokio::spawn(async move {
-        let client = crate::net::HttpClient::new();
-        let meta_dir = crate::config::SETTINGS.paths.resolve_meta_dir();
-        let tmp_dir = meta_dir.join("tmp");
-        if let Err(e) = tokio::fs::create_dir_all(&tmp_dir).await {
-            set_error_and_back(
-                &state_arc,
-                format!("Failed to create tmp dir: {}", e),
-                ImportStep::Version,
-            );
-            return;
-        }
-
-        match modrinth::download_mrpack(&client, &version, &tmp_dir).await {
-            Ok(mrpack_path) => match crate::instance::import::build_summary(&mrpack_path) {
-                Ok(summary) => {
-                    if let Ok(mut s) = state_arc.lock() {
-                        s.summary = Some(summary);
-                        s.step = ImportStep::Confirm;
-                    }
-                }
-                Err(e) => set_error_and_back(
-                    &state_arc,
-                    format!("Failed to build summary: {}", e),
-                    ImportStep::Version,
-                ),
-            },
-            Err(e) => set_error_and_back(
-                &state_arc,
-                format!("Failed to download mrpack: {}", e),
-                ImportStep::Version,
-            ),
-        }
-    });
-}
-
-fn close_popup(state: &mut ImportWizardState, instances_state: &mut instances::State) {
+fn close_popup(state: &mut ImportState, instances_state: &mut instances::State) {
     state.reset();
     instances_state.show_import_popup = false;
-}
-
-fn push_import_error(msg: String) {
-    crate::tui::error_buffer::push_error(crate::tui::error_buffer::ErrorEvent {
-        id: 0,
-        level: Level::ERROR,
-        message: msg,
-        pushed_at: Instant::now(),
-    });
-}
-
-pub(super) fn visible_versions(state: &ImportWizardState) -> Vec<VersionInfo> {
-    match &state.versions {
-        LoadState::Loaded(versions) => {
-            let q = state.version_search.query.to_lowercase();
-            versions
-                .iter()
-                .filter(|v| {
-                    q.is_empty()
-                        || v.name.to_lowercase().contains(&q)
-                        || v.version_number.to_lowercase().contains(&q)
-                })
-                .cloned()
-                .collect()
-        }
-        _ => Vec::new(),
-    }
-}
-
-fn visible_versions_ref<'a>(
-    versions: &'a [VersionInfo],
-    search: &SearchState,
-) -> Vec<&'a VersionInfo> {
-    let q = search.query.to_lowercase();
-    versions
-        .iter()
-        .filter(|v| {
-            q.is_empty()
-                || v.name.to_lowercase().contains(&q)
-                || v.version_number.to_lowercase().contains(&q)
-        })
-        .collect()
-}
-
-fn selected_version(state: &ImportWizardState) -> Option<&VersionInfo> {
-    if let LoadState::Loaded(ref versions) = state.versions {
-        let visible: Vec<_> = visible_versions_ref(versions, &state.version_search);
-        visible.get(state.version_idx).copied()
-    } else {
-        None
-    }
-}
-
-fn clamp_version_index(state: &mut ImportWizardState) {
-    let count = visible_versions(state).len();
-    if count == 0 {
-        state.version_idx = 0;
-    } else if state.version_idx >= count {
-        state.version_idx = count.saturating_sub(1);
-    }
 }

@@ -1,3 +1,10 @@
+// RTML - Rust TUI Minecraft Launcher
+// Copyright (C) 2026 RTML Contributors
+// SPDX-License-Identifier: GPL-3.0-or-later
+//
+// This is a modified version of rmcl (https://github.com/objz/rmcl).
+// Modifications made in 2026.
+
 // renders a parsed launch profile into final argv-style lists for the JVM
 // and the game. resolves conditional argument shapes (`{rules, value}`),
 // filters them through the rule evaluator, and substitutes mojang template

@@ -1,3 +1,10 @@
+// RTML - Rust TUI Minecraft Launcher
+// Copyright (C) 2026 RTML Contributors
+// SPDX-License-Identifier: GPL-3.0-or-later
+//
+// This is a modified version of rmcl (https://github.com/objz/rmcl).
+// Modifications made in 2026.
+
 // the instance list on the left side of the UI.
 // handles search/filter, scrollbar sync, and inline renaming.
 // each row shows instance name + "last played" or current run state.
@@ -45,6 +52,7 @@ pub struct State {
     pub list_state: TuiListState,
     pub scrollbar_state: ScrollbarState,
     pub show_popup: bool,
+    pub show_download_popup: bool,
     pub show_import_popup: bool,
     pub search: SearchState,
     pub renaming: Option<String>,
@@ -58,6 +66,7 @@ impl State {
             list_state: TuiListState::default(),
             scrollbar_state: ScrollbarState::default(),
             show_popup: false,
+            show_download_popup: false,
             show_import_popup: false,
             search: SearchState::default(),
             renaming: None,
@@ -129,11 +138,7 @@ impl State {
     }
 
     pub fn wants_popup(&self) -> bool {
-        self.show_popup
-    }
-
-    pub fn wants_import_popup(&self) -> bool {
-        self.show_import_popup
+        self.show_popup || self.show_download_popup || self.show_import_popup
     }
 
     pub fn remove_instance(&mut self, name: &str) {
@@ -202,9 +207,6 @@ impl WidgetKey for State {
             KeyCode::Char('a') => {
                 self.show_popup = true;
                 self.update_scrollbar();
-            }
-            KeyCode::Char('i') => {
-                self.show_import_popup = true;
             }
             KeyCode::Char('d') => {}
             KeyCode::Char('j') | KeyCode::Down => self.next(),

@@ -5,6 +5,7 @@ edition = "2024"
 description = "A TUI Minecraft launcher with BMCLAPI mirror support"
 keywords = ["minecraft", "launcher", "tui", "ratatui"]
 categories = ["command-line-utilities", "games"]
+license = "GPL-3.0-or-later"
 
 [package.metadata.wix]
 upgrade-guid = "BEC08BE4-6A8F-4C1D-A1B4-B1AC963000AE"

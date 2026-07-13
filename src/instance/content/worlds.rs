@@ -1,3 +1,10 @@
+// RTML - Rust TUI Minecraft Launcher
+// Copyright (C) 2026 RTML Contributors
+// SPDX-License-Identifier: GPL-3.0-or-later
+//
+// This is a modified version of rmcl (https://github.com/objz/rmcl).
+// Modifications made in 2026.
+
 // world save scanning. worlds are always directories (never zips) and store
 // their icon as icon.png. also computes an approximate size from top-level
 // files + region data so the user gets some sense of how chonky their world is.

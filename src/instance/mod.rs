@@ -1,4 +1,11 @@
-// instance management: creation, launching, importing modpacks, and all the
+// RTML - Rust TUI Minecraft Launcher
+// Copyright (C) 2026 RTML Contributors
+// SPDX-License-Identifier: GPL-3.0-or-later
+//
+// This is a modified version of rmcl (https://github.com/objz/rmcl).
+// Modifications made in 2026.
+
+// instance management: creation, launching, and all the
 // bookkeeping that comes with pretending to be a real launcher
 
 pub mod config_sync;

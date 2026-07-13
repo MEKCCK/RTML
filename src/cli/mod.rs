@@ -1,8 +1,14 @@
+// RTML - Rust TUI Minecraft Launcher
+// Copyright (C) 2026 RTML Contributors
+// SPDX-License-Identifier: GPL-3.0-or-later
+//
+// This is a modified version of rmcl (https://github.com/objz/rmcl).
+// Modifications made in 2026.
+
 // cli entry point and clap command definitions.
 // no subcommand = launch TUI, otherwise dispatch to the appropriate handler.
 mod account;
 mod content;
-mod import;
 mod instance;
 mod log;
 mod output;
@@ -32,7 +38,6 @@ pub async fn init() {
         Some(("account", sub_matches)) => account::handle_account(sub_matches).await,
         Some(("log", sub_matches)) => log::handle_log(sub_matches).await,
         Some(("version", sub_matches)) => version::handle_version(sub_matches).await,
-        Some(("import", sub_matches)) => import::handle_import(sub_matches).await,
         _ => Ok(()),
     };
 
@@ -192,30 +197,7 @@ fn build_command() -> Command {
                         ),
                 ),
         )
-        .subcommand(
-            Command::new("import")
-                .about("Import a modpack")
-                .arg_required_else_help(true)
-                .arg(
-                    Arg::new("source")
-                        .required(true)
-                        .action(ArgAction::Set)
-                        .help("Modrinth URL, project slug, or local .mrpack file path"),
-                )
-                .arg(
-                    Arg::new("version")
-                        .long("version")
-                        .action(ArgAction::Set)
-                        .help("Modpack version to import (default: latest)"),
-                )
-                .arg(
-                    Arg::new("name")
-                        .long("name")
-                        .action(ArgAction::Set)
-                        .help("Override instance name"),
-                ),
-        )
-}
+        }
 
 // mods, resource packs, and shaders all share the same list/enable/disable shape
 fn build_content_command(name: &'static str, about: &'static str) -> Command {

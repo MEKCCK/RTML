@@ -1,54 +1,59 @@
-// rendering for the modpack import wizard. same pattern as new_instance:
-// snapshot the state, pick the right step renderer, done.
+// RTML - Rust TUI Minecraft Launcher
+// Copyright (C) 2026 RTML Contributors
+// SPDX-License-Identifier: GPL-3.0-or-later
+//
+// This is a modified version of rmcl (https://github.com/objz/rmcl).
+// Modifications made in 2026.
 
-use super::super::base::PopupFrame;
-use super::super::new_instance::LoadState;
-use super::state::{IMPORT_STATE, ImportStep, ImportWizardState};
+use super::state::{IMPORT_STATE, ImportState, ImportStep};
 use crate::config::theme::THEME;
-use crate::tui::app::FocusedArea;
+use crate::instance::import::ModpackFormat;
+use crate::tui::widgets::popups::base::PopupFrame;
 use ratatui::{
     Frame,
-    layout::{Constraint, Direction, Layout, Rect},
+    layout::{Constraint, Rect},
     style::{Modifier, Style},
     text::{Line, Span},
-    widgets::{List, ListItem, ListState, Paragraph, StatefulWidget, Widget, Wrap},
+    widgets::{Paragraph, Widget, Wrap},
 };
 
-pub fn render(frame: &mut Frame, area: Rect, _focused: FocusedArea) {
+pub fn render(frame: &mut Frame, area: Rect) {
     let snapshot = match IMPORT_STATE.lock() {
         Ok(state) => state.clone(),
-        Err(e) => {
-            tracing::error!("Import state lock poisoned: {}", e);
-            ImportWizardState::default()
-        }
-    };
-
-    let keybinds = step_keybinds(&snapshot);
-
-    let search_line = if snapshot.step == ImportStep::Version {
-        snapshot.version_search.title_line()
-    } else {
-        None
+        Err(_) => ImportState::default(),
     };
 
     let theme = THEME.as_ref();
+
+    let keybinds = match snapshot.step {
+        ImportStep::Path => {
+            crate::tui::widgets::popups::keybind_line(&[("Enter", " 检测"), ("Esc", " 关闭")])
+        }
+        ImportStep::Detecting | ImportStep::Importing => {
+            crate::tui::widgets::popups::keybind_line(&[])
+        }
+        ImportStep::Confirm => {
+            crate::tui::widgets::popups::keybind_line(&[("h", " 返回"), ("Enter", " 导入"), ("Esc", " 关闭")])
+        }
+        ImportStep::Done(_) | ImportStep::Error(_) => {
+            crate::tui::widgets::popups::keybind_line(&[("Esc", " 关闭")])
+        }
+    };
+
     let popup = PopupFrame {
-        title: wizard_title(&snapshot),
+        title: Line::from(" 导入整合包 "),
         border_color: theme.text_dim(),
         bg: Some(theme.surface()),
         keybinds: Some(keybinds),
-        search_line,
+        search_line: None,
         content: Box::new(move |popup_area, buf| {
-            let chunks = Layout::default()
-                .direction(Direction::Vertical)
-                .constraints([Constraint::Min(1)])
-                .split(popup_area);
-
             match snapshot.step {
-                ImportStep::Input => render_input_step(&snapshot, chunks[0], buf),
-                ImportStep::Fetching => render_fetching_step(chunks[0], buf),
-                ImportStep::Version => render_version_step(&snapshot, chunks[0], buf),
-                ImportStep::Confirm => render_confirm_step(&snapshot, chunks[0], buf),
+                ImportStep::Path => render_path_step(&snapshot, popup_area, buf),
+                ImportStep::Detecting => render_loading_step("正在检测文件格式...", popup_area, buf),
+                ImportStep::Confirm => render_confirm_step(&snapshot, popup_area, buf),
+                ImportStep::Importing => render_loading_step("正在导入整合包...", popup_area, buf),
+                ImportStep::Done(ref msg) => render_message_step(msg, false, popup_area, buf),
+                ImportStep::Error(ref msg) => render_message_step(msg, true, popup_area, buf),
             }
         }),
     };
@@ -58,342 +63,59 @@ pub fn render(frame: &mut Frame, area: Rect, _focused: FocusedArea) {
 
 pub fn popup_rect(frame_area: Rect) -> Rect {
     let w = Constraint::Percentage(50);
-    let step = match IMPORT_STATE.lock() {
-        Ok(s) => s.step.clone(),
-        Err(_) => ImportStep::Input,
-    };
-
-    match step {
-        ImportStep::Input => {
-            let h = 8u16.min(frame_area.height.saturating_sub(4));
-            frame_area.centered(w, Constraint::Length(h))
-        }
-        ImportStep::Fetching => {
-            let h = 5u16.min(frame_area.height.saturating_sub(4));
-            frame_area.centered(w, Constraint::Length(h))
-        }
-        ImportStep::Version => {
-            let h = (frame_area.height * 2 / 3)
-                .max(10)
-                .min(frame_area.height.saturating_sub(4));
-            frame_area.centered(w, Constraint::Length(h))
-        }
-        ImportStep::Confirm => {
-            let h = 10u16.min(frame_area.height.saturating_sub(4));
-            frame_area.centered(w, Constraint::Length(h))
-        }
-    }
+    let h = (frame_area.height * 2 / 3).max(10).min(frame_area.height.saturating_sub(4));
+    frame_area.centered(w, Constraint::Length(h))
 }
 
-fn render_input_step(state: &ImportWizardState, area: Rect, buf: &mut ratatui::buffer::Buffer) {
+fn render_path_step(state: &ImportState, area: Rect, buf: &mut ratatui::buffer::Buffer) {
     let theme = THEME.as_ref();
-    let chunks = Layout::default()
-        .direction(Direction::Vertical)
-        .constraints([
-            Constraint::Length(1),
-            Constraint::Length(1),
-            Constraint::Min(0),
-        ])
-        .split(area);
-
-    let input_line = if state.input.is_empty() {
+    let text = if state.path.is_empty() {
         Line::from(vec![
-            Span::styled(
-                "URL, slug, or pack file path...",
-                Style::default().fg(theme.text_dim()),
-            ),
-            Span::styled(
-                "\u{2588}",
-                Style::default()
-                    .fg(theme.text_dim())
-                    .add_modifier(Modifier::SLOW_BLINK),
-            ),
+            Span::styled("输入整合包文件路径...", Style::default().fg(theme.text_dim())),
+            Span::styled("\u{2588}", Style::default().fg(theme.text_dim()).add_modifier(Modifier::SLOW_BLINK)),
         ])
     } else {
         Line::from(vec![
-            Span::styled(state.input.clone(), Style::default().fg(theme.text())),
-            Span::styled(
-                "\u{2588}",
-                Style::default()
-                    .fg(theme.text_dim())
-                    .add_modifier(Modifier::SLOW_BLINK),
-            ),
+            Span::styled(&state.path, Style::default().fg(theme.text())),
+            Span::styled("\u{2588}", Style::default().fg(theme.text_dim()).add_modifier(Modifier::SLOW_BLINK)),
         ])
     };
-    Paragraph::new(input_line).render(chunks[0], buf);
+    Paragraph::new(text).render(area, buf);
 }
 
-fn render_fetching_step(area: Rect, buf: &mut ratatui::buffer::Buffer) {
+fn render_loading_step(msg: &str, area: Rect, buf: &mut ratatui::buffer::Buffer) {
     let theme = THEME.as_ref();
-    Paragraph::new("Fetching modpack info...")
+    Paragraph::new(msg)
         .style(Style::default().fg(theme.text_dim()))
         .render(area, buf);
 }
 
-fn render_version_step(state: &ImportWizardState, area: Rect, buf: &mut ratatui::buffer::Buffer) {
+fn render_confirm_step(state: &ImportState, area: Rect, buf: &mut ratatui::buffer::Buffer) {
     let theme = THEME.as_ref();
-    match &state.versions {
-        LoadState::Idle | LoadState::Loading => {
-            Paragraph::new("Loading versions...")
-                .style(Style::default().fg(theme.text_dim()))
-                .render(area, buf);
-        }
-        LoadState::Error(message) => {
-            Paragraph::new(message.as_str())
-                .wrap(Wrap { trim: true })
-                .style(Style::default().fg(theme.error()))
-                .render(area, buf);
-        }
-        LoadState::Loaded(_) => {
-            let items: Vec<ListItem> = super::state::visible_versions(state)
-                .into_iter()
-                .map(|version| {
-                    let game_ver = version.game_versions.first().cloned().unwrap_or_default();
-                    let loader = version.loaders.first().cloned().unwrap_or_default();
-                    ListItem::new(Line::from(Span::styled(
-                        format!("{}  {}  {}", version.version_number, game_ver, loader),
-                        Style::default().fg(theme.text()),
-                    )))
-                })
-                .collect();
-
-            let list = List::new(items)
-                .highlight_style(
-                    Style::default()
-                        .fg(theme.accent())
-                        .add_modifier(Modifier::BOLD),
-                )
-                .highlight_symbol("\u{25b6} ");
-
-            let mut list_state = ListState::default().with_selected(Some(state.version_idx));
-            StatefulWidget::render(list, area, buf, &mut list_state);
-        }
-    }
-}
-
-fn render_confirm_step(state: &ImportWizardState, area: Rect, buf: &mut ratatui::buffer::Buffer) {
-    let theme = THEME.as_ref();
-    let summary = match &state.summary {
-        Some(s) => s,
-        None => {
-            Paragraph::new("暂无摘要")
-                .style(Style::default().fg(theme.text_dim()))
-                .render(area, buf);
-            return;
-        }
-    };
-
     let label_style = Style::default().fg(theme.text_dim());
-
-    let loader_display = if let Some(ref lv) = summary.loader_version {
-        format!("{} {}", summary.loader, lv)
-    } else {
-        summary.loader.to_string()
+    let fmt = match state.detected_format {
+        Some(ModpackFormat::MrPack) => "Modrinth (.mrpack)",
+        Some(ModpackFormat::CurseForge) => "CurseForge (.zip)",
+        Some(ModpackFormat::Unknown) | None => "未知格式",
     };
 
-    Paragraph::new(vec![
-        Line::from(vec![
-            Span::styled("Name: ", label_style),
-            Span::raw(summary.name.clone()),
-        ]),
-        Line::from(vec![
-            Span::styled("Pack Version: ", label_style),
-            Span::raw(summary.pack_version.clone()),
-        ]),
-        Line::from(vec![
-            Span::styled("MC Version: ", label_style),
-            Span::raw(summary.game_version.clone()),
-        ]),
-        Line::from(vec![
-            Span::styled("Loader: ", label_style),
-            Span::raw(loader_display),
-        ]),
-        Line::from(vec![
-            Span::styled("Mods: ", label_style),
-            Span::raw(format!("{} files", summary.mod_count)),
-        ]),
-        Line::from(vec![
-            Span::styled("Overrides: ", label_style),
-            Span::raw(format!("{} files", summary.override_count)),
-        ]),
-    ])
-    .style(Style::default().fg(theme.text()))
-    .wrap(Wrap { trim: true })
-    .render(area, buf);
+    let lines = vec![
+        Line::from(vec![Span::styled("路径: ", label_style), Span::raw(&state.path)]),
+        Line::from(vec![Span::styled("格式: ", label_style), Span::raw(fmt)]),
+        Line::from(Span::styled("按 Enter 导入，h 返回修改路径", Style::default().fg(theme.text_dim()))),
+    ];
+
+    Paragraph::new(lines)
+        .style(Style::default().fg(theme.text()))
+        .wrap(Wrap { trim: true })
+        .render(area, buf);
 }
 
-fn wizard_title(_state: &ImportWizardState) -> Line<'static> {
-    use crate::tui::widgets::styled_title;
-    styled_title("导入整合包", false)
-}
-
-fn step_keybinds(state: &ImportWizardState) -> Line<'static> {
-    use super::super::keybind_line;
-    match state.step {
-        ImportStep::Input => keybind_line(&[("Enter", " 获取")]),
-        ImportStep::Fetching => keybind_line(&[("Esc", " 取消")]),
-        ImportStep::Version => {
-            keybind_line(&[("/", " 搜索"), ("h", " 返回"), ("Enter", " 选择")])
-        }
-        ImportStep::Confirm => keybind_line(&[("h", " 返回"), ("Enter", " 导入")]),
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use ratatui::Terminal;
-    use ratatui::backend::TestBackend;
-
-    // serialise against parallel tests of the same global IMPORT_STATE.
-    static TEST_SERIAL: std::sync::Mutex<()> = std::sync::Mutex::new(());
-
-    fn reset_import_state(step: ImportStep) {
-        let mut guard = IMPORT_STATE.lock().expect("IMPORT_STATE lock");
-        *guard = ImportWizardState::default();
-        guard.step = step;
-    }
-
-    #[test]
-    fn import_modpack_renders_input_step() {
-        let _serial = TEST_SERIAL.lock().unwrap_or_else(|e| e.into_inner());
-        reset_import_state(ImportStep::Input);
-
-        let backend = TestBackend::new(60, 12);
-        let mut terminal = Terminal::new(backend).unwrap();
-        terminal
-            .draw(|f| render(f, f.area(), FocusedArea::ImportPopup))
-            .unwrap();
-        insta::assert_snapshot!(terminal.backend());
-    }
-
-    #[test]
-    fn import_modpack_renders_fetching_step() {
-        let _serial = TEST_SERIAL.lock().unwrap_or_else(|e| e.into_inner());
-        reset_import_state(ImportStep::Fetching);
-
-        let backend = TestBackend::new(60, 12);
-        let mut terminal = Terminal::new(backend).unwrap();
-        terminal
-            .draw(|f| render(f, f.area(), FocusedArea::ImportPopup))
-            .unwrap();
-        insta::assert_snapshot!(terminal.backend());
-    }
-
-    // Version step: pre-populate versions as LoadState::Loaded with synthetic
-    // VersionInfo entries so render walks the list path without triggering
-    // any network helpers.
-    #[test]
-    fn import_modpack_renders_version_step() {
-        use crate::net::modrinth::VersionInfo;
-
-        let _serial = TEST_SERIAL.lock().unwrap_or_else(|e| e.into_inner());
-        {
-            let mut guard = IMPORT_STATE.lock().expect("IMPORT_STATE lock");
-            *guard = ImportWizardState::default();
-            guard.step = ImportStep::Version;
-            guard.project_title = Some("Synthetic Pack".into());
-            guard.versions = LoadState::Loaded(vec![
-                VersionInfo {
-                    id: "v1".into(),
-                    name: "1.0.0".into(),
-                    version_number: "1.0.0".into(),
-                    game_versions: vec!["1.20.1".into()],
-                    loaders: vec!["fabric".into()],
-                    files: vec![],
-                    dependencies: vec![],
-                    date_published: String::new(),
-                    status: "release".to_string(),
-                },
-                VersionInfo {
-                    id: "v2".into(),
-                    name: "0.9.0".into(),
-                    version_number: "0.9.0".into(),
-                    game_versions: vec!["1.20.1".into()],
-                    loaders: vec!["fabric".into()],
-                    files: vec![],
-                    dependencies: vec![],
-                    date_published: String::new(),
-                    status: "release".to_string(),
-                },
-            ]);
-        }
-
-        let backend = TestBackend::new(60, 14);
-        let mut terminal = Terminal::new(backend).unwrap();
-        terminal
-            .draw(|f| render(f, f.area(), FocusedArea::ImportPopup))
-            .unwrap();
-        insta::assert_snapshot!(terminal.backend());
-    }
-
-    // Confirm step: needs a populated ImportSummary so the render path
-    // doesn't bail. ImportSummary is constructed manually with synthetic
-    // values; archive_path is a fake tempdir-ish path that never gets read.
-    #[test]
-    fn import_modpack_renders_confirm_step() {
-        use crate::instance::import::{ImportSummary, PackFormat};
-        use crate::instance::models::ModLoader;
-        use std::path::PathBuf;
-
-        let _serial = TEST_SERIAL.lock().unwrap_or_else(|e| e.into_inner());
-        {
-            let mut guard = IMPORT_STATE.lock().expect("IMPORT_STATE lock");
-            *guard = ImportWizardState::default();
-            guard.step = ImportStep::Confirm;
-            guard.summary = Some(ImportSummary {
-                name: "Synthetic Pack".into(),
-                pack_version: "1.0.0".into(),
-                game_version: "1.20.1".into(),
-                loader: ModLoader::Fabric,
-                loader_version: Some("0.15.0".into()),
-                mod_count: 42,
-                override_count: 3,
-                format: PackFormat::Mrpack,
-                archive_path: PathBuf::from("/tmp/synthetic.mrpack"),
-            });
-        }
-
-        let backend = TestBackend::new(60, 14);
-        let mut terminal = Terminal::new(backend).unwrap();
-        terminal
-            .draw(|f| render(f, f.area(), FocusedArea::ImportPopup))
-            .unwrap();
-        insta::assert_snapshot!(terminal.backend());
-    }
-
-    // Confirm step with loader_version=None: covers the branch where the
-    // pack didn't declare a loader version (rare upstream, but happens for
-    // older mmc packs). render_confirm_step has to handle the Option.
-    #[test]
-    fn import_modpack_renders_confirm_step_without_loader_version() {
-        use crate::instance::import::{ImportSummary, PackFormat};
-        use crate::instance::models::ModLoader;
-        use std::path::PathBuf;
-
-        let _serial = TEST_SERIAL.lock().unwrap_or_else(|e| e.into_inner());
-        {
-            let mut guard = IMPORT_STATE.lock().expect("IMPORT_STATE lock");
-            *guard = ImportWizardState::default();
-            guard.step = ImportStep::Confirm;
-            guard.summary = Some(ImportSummary {
-                name: "Vanilla Pack".into(),
-                pack_version: "2.0".into(),
-                game_version: "1.20.1".into(),
-                loader: ModLoader::Vanilla,
-                loader_version: None,
-                mod_count: 0,
-                override_count: 12,
-                format: PackFormat::Mmc,
-                archive_path: PathBuf::from("/tmp/vanilla.zip"),
-            });
-        }
-
-        let backend = TestBackend::new(60, 14);
-        let mut terminal = Terminal::new(backend).unwrap();
-        terminal
-            .draw(|f| render(f, f.area(), FocusedArea::ImportPopup))
-            .unwrap();
-        insta::assert_snapshot!(terminal.backend());
-    }
+fn render_message_step(msg: &str, is_error: bool, area: Rect, buf: &mut ratatui::buffer::Buffer) {
+    let theme = THEME.as_ref();
+    let color = if is_error { theme.error() } else { theme.success() };
+    Paragraph::new(msg)
+        .style(Style::default().fg(color))
+        .wrap(Wrap { trim: true })
+        .render(area, buf);
 }

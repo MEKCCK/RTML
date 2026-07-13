@@ -1,3 +1,10 @@
+// RTML - Rust TUI Minecraft Launcher
+// Copyright (C) 2026 RTML Contributors
+// SPDX-License-Identifier: GPL-3.0-or-later
+//
+// This is a modified version of rmcl (https://github.com/objz/rmcl).
+// Modifications made in 2026.
+
 // config loading: reads config.toml from the platform config dir, creates defaults if missing.
 // everything lands in the SETTINGS static so the rest of the app can just grab it.
 

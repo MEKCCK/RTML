@@ -1,723 +1,833 @@
-// Modrinth API v2 - 模组搜索、版本获取、下载
-// 公开接口免鉴权，所有请求携带 User-Agent 标识
+// RTML - Rust TUI Minecraft Launcher
+// Copyright (C) 2026 RTML Contributors
+// SPDX-License-Identifier: GPL-3.0-or-later
+//
+// This is a modified version of rmcl (https://github.com/objz/rmcl).
+// Modifications made in 2026.
 
+#![allow(dead_code)]
+
+use crate::net::download::source;
+use crate::net::{HttpClient, NetError};
+use serde::de::DeserializeOwned;
 use serde::{Deserialize, Serialize};
-use std::collections::HashMap;
-use std::path::{Path, PathBuf};
+use std::time::Duration;
+use tokio::io::AsyncWriteExt;
 
-use crate::instance::models::ModLoader;
+fn api_base() -> &'static str {
+    source::modrinth_api_base()
+}
 
-// ── 常量 ──
+fn all_api_bases() -> Vec<&'static str> {
+    source::all_modrinth_bases()
+}
 
-const API_BASE: &str = "https://api.modrinth.com/v2";
-
-// ── 数据模型 ──
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct ProjectInfo {
-    pub id: String,
-    pub slug: String,
-    pub title: String,
-    #[serde(default)]
-    pub description: String,
-    #[serde(default)]
-    pub icon_url: String,
-    #[serde(default)]
-    pub downloads: i64,
-    #[serde(default)]
-    pub categories: Vec<String>,
-    #[serde(default)]
-    pub versions: Vec<String>,
-    #[serde(default)]
-    pub dependencies: Vec<ProjectDependency>,
+fn deserialize_null_string<'de, D>(deserializer: D) -> Result<String, D::Error>
+where
+    D: serde::Deserializer<'de>,
+{
+    let opt = Option::<String>::deserialize(deserializer)?;
+    Ok(opt.unwrap_or_default())
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct ProjectDependency {
-    pub project_id: Option<String>,
-    pub version_id: Option<String>,
-    #[serde(rename = "type")]
-    pub dep_type: String, // required, optional, incompatible, embedded
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct ModSearchResult {
+pub struct ModResult {
     pub slug: String,
     pub title: String,
     pub description: String,
-    #[serde(default)]
     pub author: String,
-    #[serde(default)]
-    pub icon_url: String,
-    #[serde(default)]
-    pub project_id: String,
-    #[serde(default)]
-    pub downloads: i64,
-    #[serde(default)]
     pub categories: Vec<String>,
-    #[serde(default)]
-    pub versions: Vec<String>,
+    pub downloads: u64,
+    pub follows: u64,
+    pub icon_url: String,
+    pub client_side: String,
+    pub server_side: String,
+    pub project_type: String,
+    pub latest_version: Option<String>,
+    pub date_created: String,
+    pub date_modified: String,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct SearchResponse {
-    pub hits: Vec<ModSearchResult>,
-    #[serde(default)]
-    pub total_hits: i64,
-    #[serde(default)]
-    pub offset: i64,
-    #[serde(default = "default_limit")]
-    pub limit: i64,
-}
-
-fn default_limit() -> i64 {
-    20
+pub struct ModProjectFull {
+    pub slug: String,
+    pub title: String,
+    pub description: String,
+    pub body: String,
+    pub author: String,
+    pub categories: Vec<String>,
+    pub downloads: u64,
+    pub follows: u64,
+    pub icon_url: String,
+    pub client_side: String,
+    pub server_side: String,
+    pub project_type: String,
+    pub gallery: Vec<ModGalleryImage>,
+    pub issues_url: Option<String>,
+    pub source_url: Option<String>,
+    pub wiki_url: Option<String>,
+    pub discord_url: Option<String>,
+    pub license: Option<ModLicense>,
+    pub date_created: String,
+    pub date_modified: String,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct VersionInfo {
+pub struct ModGalleryImage {
+    pub url: String,
+    pub featured: bool,
+    pub title: Option<String>,
+    pub description: Option<String>,
+    pub created: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ModLicense {
     pub id: String,
     pub name: String,
-    pub version_number: String,
-    pub game_versions: Vec<String>,
-    pub loaders: Vec<String>,
-    pub files: Vec<VersionFile>,
+    pub url: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ModVersion {
+    pub id: String,
+    pub name: String,
     #[serde(default)]
-    pub dependencies: Vec<VersionDependency>,
+    pub version_number: String,
+    #[serde(default)]
+    pub game_versions: Vec<String>,
+    #[serde(default)]
+    pub loaders: Vec<String>,
+    #[serde(default)]
+    pub files: Vec<ModFile>,
+    #[serde(default)]
+    pub dependencies: Vec<ModDependency>,
     #[serde(default)]
     pub date_published: String,
-    #[serde(default)]
-    pub status: String, // release, beta, alpha
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct VersionDependency {
-    pub project_id: Option<String>,
-    pub version_id: Option<String>,
-    #[serde(rename = "type")]
-    pub dep_type: String, // required, optional, incompatible, embedded
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct VersionFile {
+pub struct ModFile {
     pub url: String,
     pub filename: String,
-    pub size: u64,
-    pub primary: bool,
     #[serde(default)]
-    pub hashes: HashMap<String, String>, // sha1, sha512, etc.
-}
-
-// ── 搜索参数构建器 ──
-
-pub struct SearchParams {
-    pub query: Option<String>,
-    pub facets: Vec<Vec<String>>,
-    pub limit: u32,
-    pub offset: u32,
-    pub index: String, // downloads, follows, newest, updated, relevance
-}
-
-impl Default for SearchParams {
-    fn default() -> Self {
-        Self {
-            query: None,
-            facets: vec![vec!["project_type:mod".to_string()]],
-            limit: 20,
-            offset: 0,
-            index: "downloads".to_string(),
-        }
-    }
-}
-
-impl SearchParams {
-    pub fn new() -> Self {
-        Self::default()
-    }
-
-    pub fn query(mut self, q: &str) -> Self {
-        if !q.is_empty() {
-            self.query = Some(q.to_string());
-        }
-        self
-    }
-
-    pub fn game_version(mut self, version: &str) -> Self {
-        if !version.is_empty() {
-            self.facets.push(vec![format!("versions:{}", version)]);
-        }
-        self
-    }
-
-    pub fn loader(mut self, loader: &str) -> Self {
-        if !loader.is_empty() {
-            self.facets
-                .push(vec![format!("categories:{}", loader)]);
-        }
-        self
-    }
-
-    pub fn category(mut self, category: &str) -> Self {
-        if !category.is_empty() {
-            self.facets
-                .push(vec![format!("categories:{}", category)]);
-        }
-        self
-    }
-
-    pub fn limit(mut self, limit: u32) -> Self {
-        self.limit = limit.min(100);
-        self
-    }
-
-    pub fn offset(mut self, offset: u32) -> Self {
-        self.offset = offset;
-        self
-    }
-
-    pub fn index(mut self, index: &str) -> Self {
-        self.index = index.to_string();
-        self
-    }
-
-    /// 构建查询字符串
-    pub fn to_query_string(&self) -> String {
-        let mut parts = Vec::new();
-
-        if let Some(ref q) = self.query {
-            parts.push(format!("query={}", urlencoding::encode(q)));
-        }
-
-        let facets_json = serde_json::to_string(&self.facets).unwrap_or_default();
-        parts.push(format!("facets={}", urlencoding::encode(&facets_json)));
-
-        parts.push(format!("limit={}", self.limit));
-        parts.push(format!("offset={}", self.offset));
-        parts.push(format!("index={}", urlencoding::encode(&self.index)));
-
-        parts.join("&")
-    }
-}
-
-// ── 本地缓存 ──
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct CachedModEntry {
-    pub project_id: String,
-    pub title: String,
-    pub icon_url: String,
-    pub description: String,
-    pub downloads: i64,
-    pub downloaded_at: chrono::DateTime<chrono::Utc>,
-    pub file_path: PathBuf,
-    pub file_hash_sha512: Option<String>,
-    pub file_size: u64,
+    pub size: u64,
+    pub hashes: ModHashes,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct ModCache {
-    pub entries: HashMap<String, CachedModEntry>, // project_id -> entry
-    pub version: u32,
+pub struct ModHashes {
+    pub sha1: Option<String>,
+    pub sha512: Option<String>,
 }
 
-impl Default for ModCache {
-    fn default() -> Self {
-        Self {
-            entries: HashMap::new(),
-            version: 1,
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ModDependency {
+    pub project_id: Option<String>,
+    pub dependency_type: String,
+    pub version_id: Option<String>,
+}
+
+#[derive(Debug, Deserialize)]
+struct ModrinthSearchResponse {
+    hits: Vec<ModrinthSearchHit>,
+    total_hits: u64,
+}
+
+#[derive(Debug, Deserialize)]
+struct ModrinthSearchHit {
+    slug: String,
+    title: String,
+    #[serde(default)]
+    description: String,
+    #[serde(default)]
+    author: String,
+    categories: Vec<String>,
+    downloads: u64,
+    follows: u64,
+    #[serde(default, deserialize_with = "deserialize_null_string")]
+    icon_url: String,
+    #[serde(default)]
+    client_side: String,
+    #[serde(default)]
+    server_side: String,
+    #[serde(default, deserialize_with = "deserialize_null_string")]
+    project_type: String,
+    #[serde(default)]
+    date_created: String,
+    #[serde(default)]
+    date_modified: String,
+    latest_version: Option<String>,
+}
+
+impl From<ModrinthSearchHit> for ModResult {
+    fn from(h: ModrinthSearchHit) -> Self {
+        ModResult {
+            slug: h.slug,
+            title: h.title,
+            description: h.description,
+            author: h.author,
+            categories: h.categories,
+            downloads: h.downloads,
+            follows: h.follows,
+            icon_url: h.icon_url,
+            client_side: h.client_side,
+            server_side: h.server_side,
+            project_type: h.project_type,
+            latest_version: h.latest_version,
+            date_created: h.date_created,
+            date_modified: h.date_modified,
         }
     }
 }
 
-impl ModCache {
-    pub fn load(path: &Path) -> Self {
-        std::fs::read_to_string(path)
-            .ok()
-            .and_then(|s| serde_json::from_str(&s).ok())
-            .unwrap_or_default()
-    }
-
-    pub fn save(&self, path: &Path) -> Result<(), String> {
-        if let Some(parent) = path.parent() {
-            std::fs::create_dir_all(parent).map_err(|e| e.to_string())?;
+impl From<ModrinthProject> for ModResult {
+    fn from(p: ModrinthProject) -> Self {
+        ModResult {
+            slug: p.slug,
+            title: p.title,
+            description: p.description,
+            author: p.author,
+            categories: p.categories,
+            downloads: p.downloads,
+            follows: p.follows,
+            icon_url: p.icon_url,
+            client_side: p.client_side,
+            server_side: p.server_side,
+            project_type: p.project_type,
+            latest_version: None,
+            date_created: p.date_created,
+            date_modified: p.date_modified,
         }
-        let json = serde_json::to_string_pretty(self).map_err(|e| e.to_string())?;
-        std::fs::write(path, json).map_err(|e| e.to_string())?;
-        Ok(())
-    }
-
-    pub fn add_entry(&mut self, entry: CachedModEntry) {
-        self.entries.insert(entry.project_id.clone(), entry);
-    }
-
-    pub fn get_entry(&self, project_id: &str) -> Option<&CachedModEntry> {
-        self.entries.get(project_id)
-    }
-
-    pub fn remove_entry(&mut self, project_id: &str) {
-        self.entries.remove(project_id);
     }
 }
 
-// ── API 函数 ──
+#[derive(Debug, Deserialize)]
+struct ModrinthProject {
+    slug: String,
+    title: String,
+    description: String,
+    author: String,
+    categories: Vec<String>,
+    downloads: u64,
+    follows: u64,
+    icon_url: String,
+    client_side: String,
+    server_side: String,
+    #[serde(default, deserialize_with = "deserialize_null_string")]
+    project_type: String,
+    date_created: String,
+    date_modified: String,
+}
 
-/// 搜索模组（使用查询参数序列化，不手动拼 URL）
+#[derive(Debug, Deserialize)]
+struct ModrinthProjectFull {
+    #[serde(default, deserialize_with = "deserialize_null_string")]
+    slug: String,
+    #[serde(default, deserialize_with = "deserialize_null_string")]
+    title: String,
+    #[serde(default, deserialize_with = "deserialize_null_string")]
+    description: String,
+    #[serde(default)]
+    body: String,
+    #[serde(default, deserialize_with = "deserialize_null_string")]
+    author: String,
+    #[serde(default, deserialize_with = "deserialize_null_string")]
+    team: String,
+    #[serde(default, deserialize_with = "deserialize_null_string")]
+    organization: String,
+    #[serde(default)]
+    categories: Vec<String>,
+    #[serde(default)]
+    downloads: u64,
+    #[serde(default)]
+    follows: u64,
+    #[serde(default, deserialize_with = "deserialize_null_string")]
+    icon_url: String,
+    #[serde(default)]
+    client_side: String,
+    #[serde(default)]
+    server_side: String,
+    #[serde(default, deserialize_with = "deserialize_null_string")]
+    project_type: String,
+    #[serde(default)]
+    gallery: Vec<ModrinthGalleryImage>,
+    #[serde(default)]
+    issues_url: Option<String>,
+    #[serde(default)]
+    source_url: Option<String>,
+    #[serde(default)]
+    wiki_url: Option<String>,
+    #[serde(default)]
+    discord_url: Option<String>,
+    #[serde(default)]
+    license: Option<ModrinthLicense>,
+    #[serde(default)]
+    date_created: String,
+    #[serde(default)]
+    date_modified: String,
+}
+
+#[derive(Debug, Deserialize)]
+struct ModrinthGalleryImage {
+    #[serde(default, deserialize_with = "deserialize_null_string", alias = "url")]
+    url: String,
+    #[serde(default)]
+    featured: bool,
+    #[serde(default)]
+    title: Option<String>,
+    #[serde(default)]
+    description: Option<String>,
+    #[serde(default, deserialize_with = "deserialize_null_string")]
+    created: String,
+}
+
+#[derive(Debug, Deserialize)]
+struct ModrinthLicense {
+    #[serde(default, deserialize_with = "deserialize_null_string")]
+    id: String,
+    #[serde(default, deserialize_with = "deserialize_null_string")]
+    name: String,
+    url: Option<String>,
+}
+
+#[derive(Debug, Deserialize)]
+struct ModrinthVersion {
+    id: String,
+    name: String,
+    #[serde(default)]
+    version_number: String,
+    #[serde(default)]
+    game_versions: Vec<String>,
+    #[serde(default)]
+    loaders: Vec<String>,
+    #[serde(default)]
+    files: Vec<ModrinthFile>,
+    #[serde(default)]
+    dependencies: Vec<ModrinthDependency>,
+    #[serde(default)]
+    date_published: String,
+}
+
+#[derive(Debug, Deserialize)]
+struct ModrinthFile {
+    url: String,
+    filename: String,
+    #[serde(default)]
+    size: u64,
+    hashes: ModrinthHashes,
+}
+
+#[derive(Debug, Deserialize)]
+struct ModrinthHashes {
+    sha1: Option<String>,
+    sha512: Option<String>,
+}
+
+#[derive(Debug, Deserialize)]
+struct ModrinthDependency {
+    project_id: Option<String>,
+    dependency_type: String,
+    version_id: Option<String>,
+}
+
+fn build_api_client() -> &'static HttpClient {
+    static CLIENT: std::sync::LazyLock<HttpClient> = std::sync::LazyLock::new(|| {
+        let client = reqwest::Client::builder()
+            .user_agent(format!("RTML/{} (Minecraft Launcher)", env!("CARGO_PKG_VERSION")))
+            .timeout(Duration::from_secs(15))
+            .connect_timeout(Duration::from_secs(5))
+            .build()
+            .unwrap_or_default();
+        HttpClient::from_inner(client)
+    });
+    &CLIENT
+}
+
+async fn retry_api_get_json_with_fallback<T: DeserializeOwned>(
+    url_template: &str,
+    api_bases: &[&str],
+    max_retries: u32,
+) -> Result<T, NetError> {
+    let client = build_api_client();
+    let mut last_err = None;
+
+    for (base_idx, base) in api_bases.iter().enumerate() {
+        let url = url_template.replace("{API_BASE}", base);
+        if base_idx > 0 {
+            tracing::info!("Modrinth API JSON fallback: trying base {}", base);
+        }
+
+        match retry_get_with_headers(client, &url, max_retries, None).await {
+            Ok(resp) => {
+                let content_type = resp
+                    .headers()
+                    .get("content-type")
+                    .and_then(|v| v.to_str().ok())
+                    .unwrap_or("")
+                    .to_lowercase();
+                if !content_type.contains("json") && !content_type.is_empty() {
+                    tracing::warn!(
+                        "Non-JSON response (Content-Type: {}) from {}, trying next source",
+                        content_type, base
+                    );
+                    last_err = Some(NetError::StatusError {
+                        status: 200,
+                        url: url.clone(),
+                    });
+                    continue;
+                }
+                match resp.json::<T>().await {
+                    Ok(v) => return Ok(v),
+                    Err(e) => {
+                        tracing::warn!(
+                            "JSON decode failed on base {} for {}: {}, trying next source ({}/{})",
+                            base, url, e, base_idx + 1, api_bases.len()
+                        );
+                        last_err = Some(NetError::Http(e));
+                        continue;
+                    }
+                }
+            }
+            Err(e) => {
+                tracing::warn!(
+                    "Modrinth API request with base {} failed: {}, trying next source ({}/{})",
+                    base, e, base_idx + 1, api_bases.len()
+                );
+                last_err = Some(e);
+                continue;
+            }
+        }
+    }
+
+    Err(last_err.unwrap_or(NetError::NetworkUnreachable))
+}
+
+async fn retry_get_with_fallback(
+    url_template: &str,
+    api_bases: &[&str],
+    max_retries: u32,
+) -> Result<reqwest::Response, NetError> {
+    let client = build_api_client();
+    let mut last_err = None;
+
+    for (base_idx, base) in api_bases.iter().enumerate() {
+        let url = url_template.replace("{API_BASE}", base);
+        if base_idx > 0 {
+            tracing::info!("Modrinth API fallback: trying base {}", base);
+        }
+        match retry_get_with_headers(client, &url, max_retries, None).await {
+            Ok(resp) => return Ok(resp),
+            Err(e) => {
+                tracing::warn!(
+                    "Modrinth API request with base {} failed: {}, trying next ({}/{})",
+                    base, e, base_idx + 1, api_bases.len()
+                );
+                last_err = Some(e);
+                continue;
+            }
+        }
+    }
+
+    Err(last_err.unwrap_or(NetError::NetworkUnreachable))
+}
+
+async fn retry_get_with_headers(
+    client: &HttpClient,
+    url: &str,
+    max_retries: u32,
+    _headers: Option<reqwest::header::HeaderMap>,
+) -> Result<reqwest::Response, NetError> {
+    let mut last_err = None;
+    for attempt in 0..=max_retries {
+        if attempt > 0 {
+            let delay = Duration::from_millis(500 * 2u64.pow(attempt - 1));
+            tokio::time::sleep(delay).await;
+        }
+        match client.get(url).await {
+            Ok(resp) => {
+                if resp.status().is_success() {
+                    return Ok(resp);
+                }
+                let status = resp.status();
+                if status.is_server_error() && attempt < max_retries {
+                    tracing::warn!("API request to {} returned {}, retrying ({}/{})", url, status, attempt + 1, max_retries);
+                    last_err = Some(NetError::StatusError {
+                        status: status.as_u16(),
+                        url: url.to_string(),
+                    });
+                    continue;
+                }
+                match resp.error_for_status() {
+                    Ok(r) => return Ok(r),
+                    Err(e) => return Err(e.into()),
+                }
+            }
+            Err(e) => {
+                if attempt < max_retries {
+                    tracing::warn!("API request to {} failed: {}, retrying ({}/{})", url, e, attempt + 1, max_retries);
+                    last_err = Some(e.into());
+                    continue;
+                }
+                return Err(e.into());
+            }
+        }
+    }
+    Err(last_err.unwrap_or(NetError::NetworkUnreachable))
+}
+
 pub async fn search_mods(
-    client: &crate::net::HttpClient,
-    params: &SearchParams,
-) -> Result<SearchResponse, crate::net::NetError> {
-    let query_string = params.to_query_string();
-    let url = format!("{}/search?{}", API_BASE, query_string);
-
-    tracing::info!("Modrinth search URL: {}", url);
-
-    let response: SearchResponse = client.get_json(&url).await?;
-    tracing::info!(
-        "Modrinth search returned {} results (total: {}, offset: {}, limit: {})",
-        response.hits.len(),
-        response.total_hits,
-        response.offset,
-        response.limit
-    );
-
-    Ok(response)
-}
-
-/// 获取项目详情
-pub async fn fetch_project(
-    client: &crate::net::HttpClient,
-    project_id: &str,
-) -> Result<ProjectInfo, crate::net::NetError> {
-    let url = format!("{}/project/{}", API_BASE, urlencoding::encode(project_id));
-    tracing::debug!("Fetching Modrinth project '{}'", project_id);
-    let project: ProjectInfo = client.get_json(&url).await?;
-    tracing::debug!("Fetched Modrinth project '{}' ({})", project.slug, project.id);
-    Ok(project)
-}
-
-/// 获取版本列表（支持游戏版本和加载器筛选）
-pub async fn fetch_versions(
-    client: &crate::net::HttpClient,
-    project_id: &str,
+    query: &str,
     game_version: Option<&str>,
     loader: Option<&str>,
-) -> Result<Vec<VersionInfo>, crate::net::NetError> {
+    limit: u64,
+    offset: u64,
+) -> Result<(Vec<ModResult>, u64), NetError> {
+    let mut facets = vec![r#"["project_type:mod"]"#.to_string()];
+
+    if let Some(ver) = game_version {
+        facets.push(format!(r#"["versions:{}"]"#, ver));
+    }
+    if let Some(ldr) = loader {
+        facets.push(format!(r#"["categories:{}"]"#, ldr));
+    }
+
+    let facets_param = format!("[{}]", facets.join(","));
+    let url_template = format!(
+        "{{API_BASE}}/search?query={}&facets={}&limit={}&offset={}",
+        urlencoding::encode(query), facets_param, limit.min(50), offset
+    );
+
+    tracing::debug!("Modrinth search: {}", url_template);
+
+    let bases = all_api_bases();
+    let resp: ModrinthSearchResponse = retry_api_get_json_with_fallback(&url_template, &bases, 2).await?;
+
+    let results: Vec<ModResult> = resp.hits.into_iter().map(Into::into).collect();
+    Ok((results, resp.total_hits))
+}
+
+pub async fn get_mod(slug: &str) -> Result<ModResult, NetError> {
+    let url_template = format!("{{API_BASE}}/project/{}", slug);
+    let bases = all_api_bases();
+
+    let resp: ModrinthProject = retry_api_get_json_with_fallback(&url_template, &bases, 2).await?;
+    Ok(resp.into())
+}
+
+pub async fn get_mod_versions(
+    slug: &str,
+    game_version: Option<&str>,
+    loader: Option<&str>,
+) -> Result<Vec<ModVersion>, NetError> {
+    let mut url_template = format!("{{API_BASE}}/project/{}/version", slug);
+
     let mut params = Vec::new();
+    if let Some(ver) = game_version {
+        params.push(format!("game_versions=[\"{}\"]", ver));
+    }
+    if let Some(ldr) = loader {
+        params.push(format!("loaders=[\"{}\"]", ldr));
+    }
+    if !params.is_empty() {
+        url_template.push('?');
+        url_template.push_str(&params.join("&"));
+    }
 
-    if let Some(gv) = game_version {
-        if !gv.is_empty() {
-            params.push(format!("game_versions=[\"{}\"]", gv));
+    let bases = all_api_bases();
+    let resp: Vec<ModrinthVersion> = retry_api_get_json_with_fallback(&url_template, &bases, 2).await?;
+
+    Ok(resp
+        .into_iter()
+        .map(|v| ModVersion {
+            id: v.id,
+            name: v.name,
+            version_number: v.version_number,
+            game_versions: v.game_versions,
+            loaders: v.loaders,
+            files: v.files.into_iter().map(|f| ModFile {
+                url: f.url,
+                filename: f.filename,
+                size: f.size,
+                hashes: ModHashes { sha1: f.hashes.sha1, sha512: f.hashes.sha512 },
+            }).collect(),
+            dependencies: v.dependencies.into_iter().map(|d| ModDependency {
+                project_id: d.project_id,
+                dependency_type: d.dependency_type,
+                version_id: d.version_id,
+            }).collect(),
+            date_published: v.date_published,
+        })
+        .collect())
+}
+
+pub async fn get_popular_mods(
+    game_version: Option<&str>,
+    limit: u64,
+) -> Result<Vec<ModResult>, NetError> {
+    let mut facets = vec![r#"["project_type:mod"]"#.to_string()];
+
+    if let Some(ver) = game_version {
+        facets.push(format!(r#"["versions:{}"]"#, ver));
+    }
+
+    let facets_param = format!("[{}]", facets.join(","));
+    let url_template = format!(
+        "{{API_BASE}}/search?facets={}&limit={}&index=downloads",
+        facets_param, limit.min(50)
+    );
+
+    let bases = all_api_bases();
+    let resp: ModrinthSearchResponse = retry_api_get_json_with_fallback(&url_template, &bases, 2).await?;
+    Ok(resp.hits.into_iter().map(Into::into).collect())
+}
+
+pub async fn search_with_facets(
+    query: &str,
+    project_type: &str,
+    game_version: Option<&str>,
+    loader: Option<&str>,
+    sort: Option<&str>,
+    limit: u64,
+    offset: u64,
+) -> Result<(Vec<ModResult>, u64), NetError> {
+    let mut facets = vec![format!(r#"["project_type:{}"]"#, project_type)];
+
+    if let Some(ver) = game_version {
+        if !ver.is_empty() {
+            facets.push(format!(r#"["versions:{}"]"#, ver));
         }
     }
-    if let Some(ld) = loader {
-        if !ld.is_empty() {
-            params.push(format!("loaders=[\"{}\"]", ld));
+    if let Some(ldr) = loader {
+        if !ldr.is_empty() {
+            facets.push(format!(r#"["categories:{}"]"#, ldr));
         }
     }
 
-    let url = if params.is_empty() {
-        format!("{}/project/{}/version", API_BASE, urlencoding::encode(project_id))
-    } else {
-        format!(
-            "{}/project/{}/version?{}",
-            API_BASE,
-            urlencoding::encode(project_id),
-            params.join("&")
-        )
+    let facets_param = format!("[{}]", facets.join(","));
+    let sort_order = match sort.unwrap_or("relevance") {
+        "downloads" => "downloads",
+        "newest" => "newest",
+        "updated" => "updated",
+        _ => "relevance",
     };
 
-    tracing::debug!(
-        "Fetching Modrinth versions for '{}' (version={:?} loader={:?})",
-        project_id,
-        game_version,
-        loader
+    let url_template = format!(
+        "{{API_BASE}}/search?query={}&facets={}&limit={}&offset={}&index={}",
+        urlencoding::encode(query),
+        facets_param,
+        limit.min(50),
+        offset,
+        sort_order,
     );
 
-    let versions: Vec<VersionInfo> = client.get_json(&url).await?;
-    tracing::debug!("Fetched {} version(s) for '{}'", versions.len(), project_id);
+    tracing::debug!("Modrinth search (facets): {}", url_template);
 
-    Ok(versions)
+    let bases = all_api_bases();
+    let resp: ModrinthSearchResponse = retry_api_get_json_with_fallback(&url_template, &bases, 2).await?;
+    let results: Vec<ModResult> = resp.hits.into_iter().map(Into::into).collect();
+    Ok((results, resp.total_hits))
 }
 
-/// 获取指定版本详情
-pub async fn fetch_version(
-    client: &crate::net::HttpClient,
-    version_id: &str,
-) -> Result<VersionInfo, crate::net::NetError> {
-    let url = format!("{}/version/{}", API_BASE, urlencoding::encode(version_id));
-    tracing::debug!("Fetching Modrinth version '{}'", version_id);
-    let version: VersionInfo = client.get_json(&url).await?;
-    tracing::debug!(
-        "Fetched version '{}' ({}) with {} file(s)",
-        version.name,
-        version.id,
-        version.files.len()
+pub async fn get_project_full(slug: &str) -> Result<ModProjectFull, NetError> {
+    let url_template = format!("{{API_BASE}}/project/{}", slug);
+    let bases = all_api_bases();
+
+    let resp: ModrinthProjectFull = retry_api_get_json_with_fallback(&url_template, &bases, 2).await?;
+
+    Ok(ModProjectFull {
+        slug: resp.slug,
+        title: resp.title,
+        description: resp.description,
+        body: resp.body,
+        author: if resp.author.is_empty() {
+            if !resp.team.is_empty() { resp.team }
+            else if !resp.organization.is_empty() { resp.organization }
+            else { String::new() }
+        } else { resp.author },
+        categories: resp.categories,
+        downloads: resp.downloads,
+        follows: resp.follows,
+        icon_url: resp.icon_url,
+        client_side: resp.client_side,
+        server_side: resp.server_side,
+        project_type: resp.project_type,
+        gallery: resp.gallery.into_iter().map(|g| ModGalleryImage {
+            url: g.url,
+            featured: g.featured,
+            title: g.title,
+            description: g.description,
+            created: g.created,
+        }).collect(),
+        issues_url: resp.issues_url,
+        source_url: resp.source_url,
+        wiki_url: resp.wiki_url,
+        discord_url: resp.discord_url,
+        license: resp.license.map(|l| ModLicense {
+            id: l.id,
+            name: l.name,
+            url: l.url,
+        }),
+        date_created: resp.date_created,
+        date_modified: resp.date_modified,
+    })
+}
+
+pub async fn get_version_by_id(version_id: &str) -> Result<ModVersion, NetError> {
+    let url_template = format!("{{API_BASE}}/version/{}", version_id);
+    let bases = all_api_bases();
+
+    let v: ModrinthVersion = retry_api_get_json_with_fallback(&url_template, &bases, 2).await?;
+
+    Ok(ModVersion {
+        id: v.id,
+        name: v.name,
+        version_number: v.version_number,
+        game_versions: v.game_versions,
+        loaders: v.loaders,
+        files: v.files.into_iter().map(|f| ModFile {
+            url: f.url,
+            filename: f.filename,
+            size: f.size,
+            hashes: ModHashes { sha1: f.hashes.sha1, sha512: f.hashes.sha512 },
+        }).collect(),
+        dependencies: v.dependencies.into_iter().map(|d| ModDependency {
+            project_id: d.project_id,
+            dependency_type: d.dependency_type,
+            version_id: d.version_id,
+        }).collect(),
+        date_published: v.date_published,
+    })
+}
+
+pub async fn get_popular_by_type(
+    project_type: &str,
+    game_version: Option<&str>,
+    limit: u64,
+) -> Result<Vec<ModResult>, NetError> {
+    let mut facets = vec![format!(r#"["project_type:{}"]"#, project_type)];
+    if let Some(ver) = game_version {
+        if !ver.is_empty() {
+            facets.push(format!(r#"["versions:{}"]"#, ver));
+        }
+    }
+
+    let facets_param = format!("[{}]", facets.join(","));
+    let url_template = format!(
+        "{{API_BASE}}/search?facets={}&limit={}&index=downloads",
+        facets_param, limit.min(50)
     );
-    Ok(version)
+
+    tracing::debug!("Modrinth popular by type: {}", url_template);
+
+    let bases = all_api_bases();
+    let resp: ModrinthSearchResponse = retry_api_get_json_with_fallback(&url_template, &bases, 2).await?;
+    Ok(resp.hits.into_iter().map(Into::into).collect())
 }
 
-/// 获取分类列表
-pub async fn fetch_categories(
-    client: &crate::net::HttpClient,
-) -> Result<Vec<serde_json::Value>, crate::net::NetError> {
-    let url = format!("{}/tag/category", API_BASE);
-    let categories: Vec<serde_json::Value> = client.get_json(&url).await?;
-    Ok(categories)
+pub async fn get_recently_updated(
+    project_type: Option<&str>,
+    limit: u64,
+) -> Result<Vec<ModResult>, NetError> {
+    let mut facets = Vec::new();
+    if let Some(pt) = project_type {
+        if !pt.is_empty() {
+            facets.push(format!(r#"["project_type:{}"]"#, pt));
+        }
+    }
+
+    let url_template = if facets.is_empty() {
+        format!("{{API_BASE}}/search?limit={}&index=updated", limit.min(50))
+    } else {
+        let facets_param = format!("[{}]", facets.join(","));
+        format!("{{API_BASE}}/search?facets={}&limit={}&index=updated", facets_param, limit.min(50))
+    };
+
+    tracing::debug!("Modrinth recently updated: {}", url_template);
+
+    let bases = all_api_bases();
+    let resp: ModrinthSearchResponse = retry_api_get_json_with_fallback(&url_template, &bases, 2).await?;
+    Ok(resp.hits.into_iter().map(Into::into).collect())
 }
 
-/// 下载模组文件（带 SHA512 校验）
-pub async fn download_mod_file(
-    client: &crate::net::HttpClient,
-    url: &str,
-    dest: &Path,
-    expected_hash: Option<&str>,
-) -> Result<(), crate::net::NetError> {
-    // 如果文件已存在且哈希匹配，跳过下载
-    if dest.exists() {
-        if let Some(expected) = expected_hash {
-            if let Ok(local_hash) = compute_file_sha512(dest) {
-                if local_hash == expected {
-                    tracing::debug!("File already exists with matching hash: {}", dest.display());
-                    return Ok(());
+pub async fn download_file_to_instance(
+    file_url: &str,
+    filename: &str,
+    instance_mc_dir: &std::path::Path,
+    content_type: &str,
+    sha1_hash: Option<&str>,
+    on_progress: Option<&(dyn Fn(u64, u64) + Sync)>,
+) -> Result<String, NetError> {
+    let target_dir = match content_type {
+        "resourcepack" => instance_mc_dir.join("resourcepacks"),
+        "shader" => instance_mc_dir.join("shaderpacks"),
+        _ => instance_mc_dir.join("mods"),
+    };
+    tokio::fs::create_dir_all(&target_dir).await?;
+    let target_path = target_dir.join(filename);
+
+    let client = reqwest::Client::builder()
+        .user_agent(format!("RTML/{} (Minecraft Launcher)", env!("CARGO_PKG_VERSION")))
+        .connect_timeout(Duration::from_secs(30))
+        .build()
+        .unwrap_or_default();
+
+    let mut response = client.get(file_url).send().await?.error_for_status()?;
+
+    if let Some(parent) = target_path.parent() {
+        tokio::fs::create_dir_all(parent).await?;
+    }
+
+    let mut file = tokio::io::BufWriter::new(tokio::fs::File::create(&target_path).await?);
+
+    let mut hasher = sha1_hash.map(|_| <sha1::Sha1 as Default>::default());
+
+    let total_size = response.content_length().unwrap_or(0);
+    let mut downloaded: u64 = 0;
+    let mut last_progress = std::time::Instant::now();
+
+    while let Some(chunk) = response.chunk().await? {
+        if let Some(ref mut h) = hasher {
+            use sha1::Digest;
+            h.update(&chunk);
+        }
+        file.write_all(&chunk).await?;
+        downloaded += chunk.len() as u64;
+        if total_size > 0 {
+            let now = std::time::Instant::now();
+            if now.duration_since(last_progress).as_millis() >= 200 {
+                last_progress = now;
+                if let Some(cb) = on_progress {
+                    cb(downloaded, total_size);
                 }
             }
         }
     }
 
-    // 下载文件
-    crate::net::download_file(client, url, dest, |downloaded, total| {
-        if total > 0 {
-            let percent = (downloaded as f64 / total as f64 * 100.0) as u32;
-            tracing::trace!("Download progress: {}%", percent);
-        }
-    })
-    .await?;
+    file.flush().await?;
 
-    // 验证哈希
-    if let Some(expected) = expected_hash {
-        let actual_hash = compute_file_sha512(dest)
-            .map_err(|e| crate::net::NetError::Parse(format!("Failed to compute hash: {}", e)))?;
-
-        if actual_hash != expected {
-            // 删除错误文件
-            let _ = std::fs::remove_file(dest);
-            return Err(crate::net::NetError::Parse(format!(
-                "Hash mismatch: expected {}, got {}",
-                expected, actual_hash
+    if let (Some(expected_sha1), Some(h)) = (sha1_hash, hasher) {
+        use sha1::Digest;
+        let actual = hex::encode(h.finalize());
+        if !actual.eq_ignore_ascii_case(expected_sha1) {
+            let _ = tokio::fs::remove_file(&target_path).await;
+            return Err(NetError::Sha1Mismatch(format!(
+                "File {} expected SHA1 {} but got {}",
+                filename, expected_sha1, actual
             )));
         }
-        tracing::debug!("SHA512 hash verified for {}", dest.display());
     }
 
-    Ok(())
+    tracing::info!("Content downloaded: {} -> {}", filename, target_path.display());
+    Ok(target_path.to_string_lossy().to_string())
 }
 
-/// 下载 mrpack 整合包
-pub async fn download_mrpack(
-    client: &crate::net::HttpClient,
-    version: &VersionInfo,
-    dest: &Path,
-) -> Result<PathBuf, crate::net::NetError> {
-    let file = version
-        .files
-        .iter()
-        .find(|f| f.primary)
-        .or_else(|| {
-            tracing::warn!(
-                "Version '{}' has no primary file; using first file",
-                version.id
-            );
-            version.files.first()
-        })
-        .ok_or_else(|| crate::net::NetError::Parse("No files in version".to_string()))?;
-
-    let hash = file.hashes.get("sha512").map(|s| s.as_str());
-    let mrpack_path = dest.join(&file.filename);
-
-    tracing::info!(
-        "Downloading mrpack '{}' for version '{}' to {}",
-        file.filename,
-        version.id,
-        mrpack_path.display()
-    );
-
-    download_mod_file(client, &file.url, &mrpack_path, hash).await?;
-    Ok(mrpack_path)
-}
-
-/// 解析 mrpack 整合包
-pub fn parse_mrpack(path: &Path) -> Result<MrpackIndex, String> {
-    tracing::debug!("Parsing .mrpack from {}", path.display());
-    let file = std::fs::File::open(path).map_err(|e| format!("Cannot open .mrpack: {e}"))?;
-    let mut archive = zip::ZipArchive::new(file).map_err(|e| format!("Invalid ZIP: {e}"))?;
-    let entry = archive
-        .by_name("modrinth.index.json")
-        .map_err(|_| "Missing modrinth.index.json in .mrpack".to_string())?;
-    let index: MrpackIndex =
-        serde_json::from_reader(entry).map_err(|e| format!("Invalid manifest JSON: {e}"))?;
-    tracing::debug!(
-        "Parsed .mrpack '{}' version_id={} files={} deps={}",
-        index.name,
-        index.version_id,
-        index.files.len(),
-        index.dependencies.len()
-    );
-    Ok(index)
-}
-
-// ── mrpack 模型 ──
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct MrpackIndex {
-    #[serde(rename = "formatVersion")]
-    pub format_version: u32,
-    pub game: String,
-    #[serde(rename = "versionId")]
-    pub version_id: String,
-    pub name: String,
-    #[serde(default)]
-    pub dependencies: HashMap<String, String>,
-    #[serde(default)]
-    pub files: Vec<MrpackFile>,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct MrpackFile {
-    pub path: String,
-    pub downloads: Vec<String>,
-    #[serde(rename = "fileSize")]
-    pub file_size: u64,
-}
-
-// ── 依赖解析 ──
-
-/// 解析依赖并返回需要下载的项目 ID 列表（递归 required 依赖）
-pub fn resolve_dependencies(
-    dependencies: &[VersionDependency],
-    downloaded: &std::collections::HashSet<String>,
-) -> Vec<String> {
-    let mut result = Vec::new();
-
-    for dep in dependencies {
-        if dep.dep_type == "required" {
-            if let Some(ref project_id) = dep.project_id {
-                if !downloaded.contains(project_id) {
-                    result.push(project_id.clone());
-                }
-            }
-        }
-    }
-
-    result
-}
-
-/// 从 mrpack 依赖中解析加载器
-pub fn loader_from_dependencies(
-    deps: &HashMap<String, String>,
-) -> (Option<ModLoader>, Option<String>) {
-    let loaders = [
-        ("fabric-loader", ModLoader::Fabric),
-        ("forge", ModLoader::Forge),
-        ("neoforge", ModLoader::NeoForge),
-        ("quilt-loader", ModLoader::Quilt),
-    ];
-    for (key, loader) in &loaders {
-        if let Some(version) = deps.get(*key) {
-            tracing::trace!(
-                "Resolved loader dependency {}={} as {}",
-                key,
-                version,
-                loader
-            );
-            return (Some(*loader), Some(version.clone()));
-        }
-    }
-    tracing::trace!("No loader dependency found; treating as vanilla");
-    (None, None)
-}
-
-/// 从 mrpack 依赖中获取游戏版本
-pub fn game_version_from_dependencies(deps: &HashMap<String, String>) -> Option<String> {
-    deps.get("minecraft").cloned()
-}
-
-// ── 工具函数 ──
-
-/// 计算文件 SHA512 哈希
-pub fn compute_file_sha512(path: &Path) -> Result<String, String> {
-    use sha2::{Digest, Sha512};
-
-    let data = std::fs::read(path).map_err(|e| e.to_string())?;
-    let mut hasher = Sha512::new();
-    hasher.update(&data);
-    let result = hasher.finalize();
-    Ok(hex::encode(result))
-}
-
-/// 验证文件哈希
-pub fn verify_file_hash(path: &Path, expected_hash: &str, algorithm: &str) -> Result<bool, String> {
-    match algorithm {
-        "sha512" => {
-            let actual = compute_file_sha512(path)?;
-            Ok(actual == expected_hash)
-        }
-        "sha1" => {
-            use sha1::{Digest, Sha1};
-            let data = std::fs::read(path).map_err(|e| e.to_string())?;
-            let mut hasher = Sha1::new();
-            hasher.update(&data);
-            let result = hasher.finalize();
-            let actual = hex::encode(result);
-            Ok(actual == expected_hash)
-        }
-        _ => Err(format!("Unsupported hash algorithm: {}", algorithm)),
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn search_params_to_query_string() {
-        let params = SearchParams::new()
-            .query("fabric api")
-            .game_version("1.21.1")
-            .loader("fabric")
-            .limit(20)
-            .offset(0);
-
-        let qs = params.to_query_string();
-        assert!(qs.contains("query=fabric%20api"));
-        assert!(qs.contains("limit=20"));
-        assert!(qs.contains("offset=0"));
-        assert!(qs.contains("facets="));
-    }
-
-    #[test]
-    fn search_params_default_facets() {
-        let params = SearchParams::new();
-        assert_eq!(params.facets, vec![vec!["project_type:mod".to_string()]]);
-    }
-
-    #[test]
-    fn search_params_add_loader() {
-        let params = SearchParams::new().loader("neoforge");
-        assert!(params.facets.contains(&vec!["categories:neoforge".to_string()]));
-    }
-
-    #[test]
-    fn loader_from_fabric_deps() {
-        let mut deps = HashMap::new();
-        deps.insert("minecraft".to_string(), "1.21.4".to_string());
-        deps.insert("fabric-loader".to_string(), "0.16.10".to_string());
-        let (loader, version) = loader_from_dependencies(&deps);
-        assert_eq!(loader, Some(ModLoader::Fabric));
-        assert_eq!(version, Some("0.16.10".to_string()));
-    }
-
-    #[test]
-    fn loader_from_forge_deps() {
-        let mut deps = HashMap::new();
-        deps.insert("minecraft".to_string(), "1.20.1".to_string());
-        deps.insert("forge".to_string(), "47.2.0".to_string());
-        let (loader, version) = loader_from_dependencies(&deps);
-        assert_eq!(loader, Some(ModLoader::Forge));
-        assert_eq!(version, Some("47.2.0".to_string()));
-    }
-
-    #[test]
-    fn game_version_from_deps() {
-        let mut deps = HashMap::new();
-        deps.insert("minecraft".to_string(), "1.21.4".to_string());
-        assert_eq!(
-            game_version_from_dependencies(&deps),
-            Some("1.21.4".to_string())
-        );
-    }
-
-    #[test]
-    fn mod_cache_save_load() {
-        let tmp = tempfile::tempdir().unwrap();
-        let cache_path = tmp.path().join("cache.json");
-
-        let mut cache = ModCache::default();
-        cache.add_entry(CachedModEntry {
-            project_id: "test-mod".to_string(),
-            title: "Test Mod".to_string(),
-            icon_url: String::new(),
-            description: "A test mod".to_string(),
-            downloads: 100,
-            downloaded_at: chrono::Utc::now(),
-            file_path: PathBuf::from("mods/test-mod.jar"),
-            file_hash_sha512: None,
-            file_size: 1024,
-        });
-
-        cache.save(&cache_path).unwrap();
-
-        let loaded = ModCache::load(&cache_path);
-        assert_eq!(loaded.entries.len(), 1);
-        assert!(loaded.get_entry("test-mod").is_some());
-    }
-
-    #[test]
-    fn resolve_required_dependencies() {
-        let deps = vec![
-            VersionDependency {
-                project_id: Some("dep-1".to_string()),
-                version_id: None,
-                dep_type: "required".to_string(),
-            },
-            VersionDependency {
-                project_id: Some("dep-2".to_string()),
-                version_id: None,
-                dep_type: "optional".to_string(),
-            },
-            VersionDependency {
-                project_id: Some("dep-3".to_string()),
-                version_id: None,
-                dep_type: "required".to_string(),
-            },
-        ];
-
-        let downloaded = std::collections::HashSet::from(["dep-1".to_string()]);
-        let needed = resolve_dependencies(&deps, &downloaded);
-
-        assert_eq!(needed, vec!["dep-3".to_string()]);
-    }
-}
-
-#[cfg(test)]
-mod url_tests {
-    use super::*;
-
-    #[test]
-    fn search_params_generates_correct_url() {
-        let params = SearchParams::new()
-            .query("sodium")
-            .game_version("1.21.1")
-            .loader("neoforge")
-            .limit(20)
-            .offset(0);
-        let url = format!("{}/search?{}", API_BASE, params.to_query_string());
-        eprintln!("Generated URL: {}", url);
-        // Should contain all facets
-        assert!(url.contains("project_type%3Amod"));
-        assert!(url.contains("versions%3A1.21.1"));
-        assert!(url.contains("categories%3Aneoforge"));
-        assert!(url.contains("query=sodium"));
-    }
-
-    #[test]
-    fn search_params_wildcard_url() {
-        let params = SearchParams::new()
-            .limit(20)
-            .offset(0);
-        let url = format!("{}/search?{}", API_BASE, params.to_query_string());
-        eprintln!("Wildcard URL: {}", url);
-        // Should not contain query param
-        assert!(!url.contains("query="));
-        assert!(url.contains("project_type%3Amod"));
-    }
+pub async fn download_mod_file(
+    file_url: &str,
+    filename: &str,
+    instance_mc_dir: &std::path::Path,
+    sha1_hash: Option<&str>,
+    on_progress: Option<&(dyn Fn(u64, u64) + Sync)>,
+) -> Result<String, NetError> {
+    download_file_to_instance(file_url, filename, instance_mc_dir, "mod", sha1_hash, on_progress).await
 }

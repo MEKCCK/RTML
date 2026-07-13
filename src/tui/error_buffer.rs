@@ -1,3 +1,10 @@
+// RTML - Rust TUI Minecraft Launcher
+// Copyright (C) 2026 RTML Contributors
+// SPDX-License-Identifier: GPL-3.0-or-later
+//
+// This is a modified version of rmcl (https://github.com/objz/rmcl).
+// Modifications made in 2026.
+
 // thread-safe FIFO queue for error/warning toasts displayed in the UI.
 // also (ab)used for INFO toasts like "desktop shortcut created" because
 // why build a separate notification system when this one works fine.

@@ -1,3 +1,10 @@
+// RTML - Rust TUI Minecraft Launcher
+// Copyright (C) 2026 RTML Contributors
+// SPDX-License-Identifier: GPL-3.0-or-later
+//
+// This is a modified version of rmcl (https://github.com/objz/rmcl).
+// Modifications made in 2026.
+
 // shared widget utilities and the trait all key-handling widgets implement
 
 use crate::config::theme::THEME;
@@ -11,7 +18,6 @@ pub mod account;
 pub mod content;
 pub mod instances;
 pub mod logs_viewer;
-pub mod mod_download;
 pub mod popups;
 pub mod screenshots_grid;
 pub mod search;

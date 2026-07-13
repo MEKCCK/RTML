@@ -1,3 +1,10 @@
+// RTML - Rust TUI Minecraft Launcher
+// Copyright (C) 2026 RTML Contributors
+// SPDX-License-Identifier: GPL-3.0-or-later
+//
+// This is a modified version of rmcl (https://github.com/objz/rmcl).
+// Modifications made in 2026.
+
 // layout and rendering. the main frame is split into:
 //   left 20%: instance sidebar
 //   right 80%: title bar + content area + bottom bar (account / details / status)
@@ -28,19 +35,6 @@ impl App {
             Block::default().style(Style::default().bg(theme.background())),
             frame.area(),
         );
-
-        // 模组下载面板：全屏覆盖
-        if self.focused == FocusedArea::ModDownload {
-            widgets::mod_download::render(
-                frame,
-                frame.area(),
-                self.focused,
-                &mut self.mod_download_state,
-            );
-            // 渲染错误提示
-            self.render_error_toasts(frame);
-            return;
-        }
 
         let chunks = Layout::default()
             .direction(Direction::Horizontal)
@@ -128,9 +122,15 @@ impl App {
             widgets::popups::new_instance::render(frame, area, self.focused);
         }
 
+        if self.instances_state.show_download_popup {
+            let area = widgets::popups::mod_download::popup_rect(frame.area());
+            let game_ver = self.instances_state.selected_instance().map(|i| i.game_version.as_str());
+            widgets::popups::mod_download::render(frame, area, game_ver);
+        }
+
         if self.instances_state.show_import_popup {
             let area = widgets::popups::import_modpack::popup_rect(frame.area());
-            widgets::popups::import_modpack::render(frame, area, self.focused);
+            widgets::popups::import_modpack::render(frame, area);
         }
 
         if self.focused == FocusedArea::ConfirmDelete
@@ -284,24 +284,28 @@ impl App {
             ]),
             Line::from("  ──────────────────────────────────────"),
             Line::from(vec![
-                Span::styled("    1-4", Style::default().fg(theme.text()).add_modifier(Modifier::BOLD)),
-                Span::styled("         切换面板 (实例/内容/账户/设置)", Style::default().fg(theme.text_dim())),
+                Span::styled("    Tab", Style::default().fg(theme.text()).add_modifier(Modifier::BOLD)),
+                Span::styled("            切换面板 (实例→内容→账户→设置)", Style::default().fg(theme.text_dim())),
             ]),
             Line::from(vec![
-                Span::styled("    b", Style::default().fg(theme.text()).add_modifier(Modifier::BOLD)),
-                Span::styled("             模组下载 (Modrinth)", Style::default().fg(theme.text_dim())),
+                Span::styled("    Shift+Tab", Style::default().fg(theme.text()).add_modifier(Modifier::BOLD)),
+                Span::styled("       反向切换面板", Style::default().fg(theme.text_dim())),
+            ]),
+            Line::from(vec![
+                Span::styled("    1-4", Style::default().fg(theme.text()).add_modifier(Modifier::BOLD)),
+                Span::styled("             直达面板 (实例/内容/账户/设置)", Style::default().fg(theme.text_dim())),
             ]),
             Line::from(vec![
                 Span::styled("    ?/h", Style::default().fg(theme.text()).add_modifier(Modifier::BOLD)),
-                Span::styled("          显示/隐藏帮助", Style::default().fg(theme.text_dim())),
+                Span::styled("              显示/隐藏帮助", Style::default().fg(theme.text_dim())),
             ]),
             Line::from(vec![
                 Span::styled("    q", Style::default().fg(theme.text()).add_modifier(Modifier::BOLD)),
-                Span::styled("             退出程序", Style::default().fg(theme.text_dim())),
+                Span::styled("                 退出程序", Style::default().fg(theme.text_dim())),
             ]),
             Line::from(vec![
                 Span::styled("    Esc", Style::default().fg(theme.text()).add_modifier(Modifier::BOLD)),
-                Span::styled("           返回 / 关闭弹窗", Style::default().fg(theme.text_dim())),
+                Span::styled("               返回 / 关闭弹窗", Style::default().fg(theme.text_dim())),
             ]),
             Line::from(""),
             Line::from(vec![
@@ -315,6 +319,10 @@ impl App {
             Line::from(vec![
                 Span::styled("    a", Style::default().fg(theme.text()).add_modifier(Modifier::BOLD)),
                 Span::styled("             新建实例", Style::default().fg(theme.text_dim())),
+            ]),
+            Line::from(vec![
+                Span::styled("    m", Style::default().fg(theme.text()).add_modifier(Modifier::BOLD)),
+                Span::styled("             下载 Mod", Style::default().fg(theme.text_dim())),
             ]),
             Line::from(vec![
                 Span::styled("    i", Style::default().fg(theme.text()).add_modifier(Modifier::BOLD)),

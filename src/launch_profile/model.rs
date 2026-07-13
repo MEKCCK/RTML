@@ -1,3 +1,10 @@
+// RTML - Rust TUI Minecraft Launcher
+// Copyright (C) 2026 RTML Contributors
+// SPDX-License-Identifier: GPL-3.0-or-later
+//
+// This is a modified version of rmcl (https://github.com/objz/rmcl).
+// Modifications made in 2026.
+
 // mojang-format launch profile types. mirrors the on-disk JSON schema
 // used by vanilla versions, forge installer output, neoforge installer
 // output, fabric profiles, and quilt profiles. parsing is lossless for

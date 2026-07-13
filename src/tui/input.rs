@@ -1,18 +1,43 @@
+// RTML - Rust TUI Minecraft Launcher
+// Copyright (C) 2026 RTML Contributors
+// SPDX-License-Identifier: GPL-3.0-or-later
+//
+// This is a modified version of rmcl (https://github.com/objz/rmcl).
+// Modifications made in 2026.
+
 // keybindings and input dispatch.
 // 设计原则：
 // 1. 方向键在所有上下文中都能导航
-// 2. 数字键快速切换面板
+// 2. Tab/Shift+Tab 切换主面板，数字键直达
 // 3. 相同按键 = 相同操作（减少认知负担）
-// 4. Esc 始终是"返回/关闭"
+// 4. Esc 始终是"返回/关闭"，且保证焦点闭环恢复
 // 5. ? 显示帮助
 
-use ratatui::crossterm::event::{KeyCode, KeyEvent};
+use ratatui::crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
 
 use super::app::{App, FocusedArea};
 use super::widgets::{
     self, WidgetKey, popups::confirm as confirm_popup,
 };
 use crate::tui::error_buffer;
+
+/// 面板循环顺序：Instances → Content → Account → Settings
+const PANEL_ORDER: &[FocusedArea] = &[
+    FocusedArea::Instances,
+    FocusedArea::Content,
+    FocusedArea::Account,
+    FocusedArea::Settings,
+];
+
+fn next_panel(current: FocusedArea) -> FocusedArea {
+    let idx = PANEL_ORDER.iter().position(|&p| p == current).unwrap_or(0);
+    PANEL_ORDER[(idx + 1) % PANEL_ORDER.len()]
+}
+
+fn prev_panel(current: FocusedArea) -> FocusedArea {
+    let idx = PANEL_ORDER.iter().position(|&p| p == current).unwrap_or(0);
+    PANEL_ORDER[if idx == 0 { PANEL_ORDER.len() - 1 } else { idx - 1 }]
+}
 
 impl App {
     pub(super) fn handle_key_event(&mut self, key_event: KeyEvent) -> color_eyre::Result<()> {
@@ -133,18 +158,31 @@ impl App {
 
         // ── 新建实例向导 ──
         if self.focused == FocusedArea::Popup {
-            widgets::popups::new_instance::handle_key(&key_event, &mut self.instances_state);
+            if self.instances_state.show_popup {
+                widgets::popups::new_instance::handle_key(&key_event, &mut self.instances_state);
+            } else if self.instances_state.show_download_popup {
+                widgets::popups::mod_download::handle_key(&key_event, &mut self.instances_state);
+            } else if self.instances_state.show_import_popup {
+                widgets::popups::import_modpack::handle_key(&key_event, &mut self.instances_state);
+            }
+            if !self.instances_state.wants_popup() {
+                self.focused = self.pre_popup_focused;
+            }
             return Ok(());
         }
 
-        // ── 导入整合包向导 ──
-        if self.focused == FocusedArea::ImportPopup {
-            widgets::popups::import_modpack::handle_key(&key_event, &mut self.instances_state);
-            return Ok(());
-        }
-
-        // ── 全局快捷键（数字键切换面板） ──
+        // ── 全局快捷键 ──
         match key_event.code {
+            // Tab/Shift+Tab 切换主面板
+            KeyCode::Tab => {
+                self.focused = if key_event.modifiers.contains(KeyModifiers::SHIFT) {
+                    prev_panel(self.focused)
+                } else {
+                    next_panel(self.focused)
+                };
+                return Ok(());
+            }
+            // 数字键直达面板
             KeyCode::Char('1') => {
                 self.focused = FocusedArea::Instances;
                 return Ok(());
@@ -165,22 +203,6 @@ impl App {
                 self.show_help = true;
                 return Ok(());
             }
-            KeyCode::Char('b') => {
-                // 打开模组下载面板，自动获取当前实例的版本和加载器
-                if let Some(instance) = self.instances_state.selected_instance() {
-                    let mods_dir = self.instance_manager.instances_dir
-                        .join(&instance.name)
-                        .join(".minecraft")
-                        .join("mods");
-                    self.mod_download_state = crate::tui::widgets::mod_download::ModDownloadState::from_instance(
-                        &instance.game_version,
-                        instance.loader,
-                        mods_dir,
-                    );
-                }
-                self.focused = FocusedArea::ModDownload;
-                return Ok(());
-            }
             KeyCode::Char('q') => {
                 self.exit = true;
                 return Ok(());
@@ -188,14 +210,14 @@ impl App {
             _ => {}
         }
 
-        // ── Tab/Shift+Tab 在内容面板切换标签 ──
+        // ── 内容面板：←/→/h/l 切换子标签 ──
         if self.focused == FocusedArea::Content {
             match key_event.code {
-                KeyCode::Tab | KeyCode::Right | KeyCode::Char('l') => {
+                KeyCode::Right | KeyCode::Char('l') => {
                     self.content_tab = self.content_tab.next();
                     return Ok(());
                 }
-                KeyCode::BackTab | KeyCode::Left | KeyCode::Char('h') => {
+                KeyCode::Left | KeyCode::Char('h') => {
                     self.content_tab = self.content_tab.previous();
                     return Ok(());
                 }
@@ -203,7 +225,7 @@ impl App {
             }
         }
 
-        // ── 内容面板 ──
+        // ── 内容面板操作 ──
         if self.focused == FocusedArea::Content {
             if self.content_tab == widgets::content::ContentTab::Logs {
                 if key_event.code == KeyCode::Char('d')
@@ -363,15 +385,6 @@ impl App {
             return Ok(());
         }
 
-        // ── 模组下载面板 ──
-        if self.focused == FocusedArea::ModDownload {
-            if !widgets::mod_download::handle_key(&key_event, &mut self.mod_download_state) {
-                // Esc 退出模组下载
-                self.focused = FocusedArea::Content;
-            }
-            return Ok(());
-        }
-
         // ── 实例面板 ──
         if self.focused == FocusedArea::Instances {
             // 重命名模式
@@ -436,7 +449,7 @@ impl App {
                 return Ok(());
             }
 
-            // 普通模式 - 全局快捷键
+            // 普通模式 - 实例面板快捷键
             match key_event.code {
                 // 启动游戏
                 KeyCode::Enter | KeyCode::Char(' ') => {
@@ -454,12 +467,9 @@ impl App {
                 }
                 // 新建实例
                 KeyCode::Char('a') => {
+                    self.pre_popup_focused = self.focused;
                     self.instances_state.show_popup = true;
                     self.instances_state.update_scrollbar();
-                }
-                // 导入整合包
-                KeyCode::Char('i') => {
-                    self.instances_state.show_import_popup = true;
                 }
                 // 删除实例
                 KeyCode::Char('d') => {
@@ -494,6 +504,16 @@ impl App {
                     self.instances_state.list_state.selected = Some(0);
                     self.instances_state.update_scrollbar();
                 }
+                // 下载 Mod
+                KeyCode::Char('m') => {
+                    self.pre_popup_focused = self.focused;
+                    self.instances_state.show_download_popup = true;
+                }
+                // 导入整合包
+                KeyCode::Char('i') => {
+                    self.pre_popup_focused = self.focused;
+                    self.instances_state.show_import_popup = true;
+                }
                 // 终止运行中的实例
                 KeyCode::Esc => {
                     if let Some(instance) = self.instances_state.selected_instance() {
@@ -507,17 +527,11 @@ impl App {
             }
         }
 
-        // ── 检查弹窗状态 ──
+        // ── 检查弹窗状态（闭环焦点恢复） ──
         if self.instances_state.wants_popup() {
             self.focused = FocusedArea::Popup;
         } else if self.focused == FocusedArea::Popup {
-            self.focused = FocusedArea::Instances;
-        }
-
-        if self.instances_state.wants_import_popup() {
-            self.focused = FocusedArea::ImportPopup;
-        } else if self.focused == FocusedArea::ImportPopup {
-            self.focused = FocusedArea::Instances;
+            self.focused = self.pre_popup_focused;
         }
 
         Ok(())

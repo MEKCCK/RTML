@@ -1,3 +1,10 @@
+// RTML - Rust TUI Minecraft Launcher
+// Copyright (C) 2026 RTML Contributors
+// SPDX-License-Identifier: GPL-3.0-or-later
+//
+// This is a modified version of rmcl (https://github.com/objz/rmcl).
+// Modifications made in 2026.
+
 // shared utilities for popup widgets: layout helpers, word wrapping, keybind rendering.
 // individual popup types live in their own submodules.
 
@@ -5,6 +12,7 @@ pub mod base;
 pub mod confirm;
 pub mod error;
 pub mod import_modpack;
+pub mod mod_download;
 pub mod new_instance;
 
 use ratatui::layout::Rect;

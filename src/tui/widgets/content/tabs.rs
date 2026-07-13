@@ -1,3 +1,10 @@
+// RTML - Rust TUI Minecraft Launcher
+// Copyright (C) 2026 RTML Contributors
+// SPDX-License-Identifier: GPL-3.0-or-later
+//
+// This is a modified version of rmcl (https://github.com/objz/rmcl).
+// Modifications made in 2026.
+
 // the outer frame for the content area: tab bar, keybind footer,
 // and dispatching render calls to the active tab's widget.
 // also renders the instance name/version header with run state indicators.
@@ -153,6 +160,7 @@ pub fn render(
                 ("o", " 打开目录"),
                 ("←→/hl", " 切换标签"),
                 ("/", " 搜索"),
+                ("Tab", " 切换面板"),
             ],
             ContentTab::Worlds => &[
                 ("↑↓/jk", " 导航"),
@@ -160,6 +168,7 @@ pub fn render(
                 ("o", " 打开目录"),
                 ("←→/hl", " 切换标签"),
                 ("/", " 搜索"),
+                ("Tab", " 切换面板"),
             ],
             ContentTab::Screenshots => &[
                 ("Shift+HJKL", " 网格"),
@@ -168,6 +177,7 @@ pub fn render(
                 ("o", " 打开目录"),
                 ("←→/hl", " 切换标签"),
                 ("/", " 搜索"),
+                ("Tab", " 切换面板"),
             ],
             ContentTab::Logs => {
                 if logs_state.viewer_focused {
@@ -185,6 +195,7 @@ pub fn render(
                         ("d", " 删除"),
                         ("←→/hl", " 切换标签"),
                         ("/", " 搜索"),
+                        ("Tab", " 切换面板"),
                     ]
                 }
             }
@@ -199,7 +210,7 @@ pub fn render(
             ("o", " 打开目录"),
             ("/", " 搜索"),
             ("Esc", " 终止"),
-            ("1234", " 切换面板"),
+            ("Tab", " 切换面板"),
         ])
     } else {
         None

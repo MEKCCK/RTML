@@ -1,3 +1,10 @@
+// RTML - Rust TUI Minecraft Launcher
+// Copyright (C) 2026 RTML Contributors
+// SPDX-License-Identifier: GPL-3.0-or-later
+//
+// This is a modified version of rmcl (https://github.com/objz/rmcl).
+// Modifications made in 2026.
+
 // all the config structs that map to sections in config.toml.
 // everything has sane defaults so a blank file (or no file) still works.
 
@@ -19,12 +26,15 @@ pub enum ImageProtocol {
 pub struct General {
     #[serde(default)]
     pub download_source: DownloadSourceConfig,
+    #[serde(default)]
+    pub curseforge_api_key: Option<String>,
 }
 
 impl Default for General {
     fn default() -> Self {
         Self {
             download_source: DownloadSourceConfig::default(),
+            curseforge_api_key: None,
         }
     }
 }
@@ -81,6 +91,10 @@ pub fn resolve_path(raw: &str) -> PathBuf {
         if let Some(home) = dirs_next::home_dir() {
             return home.join(stripped);
         }
+    } else if let Some(stripped) = raw.strip_prefix("~\\") {
+        if let Some(home) = dirs_next::home_dir() {
+            return home.join(stripped);
+        }
     } else if raw == "~"
         && let Some(home) = dirs_next::home_dir()
     {
@@ -95,11 +109,19 @@ impl Paths {
     }
 
     pub fn resolve_instances_dir(&self) -> PathBuf {
-        resolve_path(&self.instances_dir)
+        if self.instances_dir.is_empty() {
+            PathBuf::from(default_instances_dir())
+        } else {
+            resolve_path(&self.instances_dir)
+        }
     }
 
     pub fn resolve_meta_dir(&self) -> PathBuf {
-        resolve_path(&self.meta_dir)
+        if self.meta_dir.is_empty() {
+            PathBuf::from(default_meta_dir())
+        } else {
+            resolve_path(&self.meta_dir)
+        }
     }
 }
 
@@ -220,7 +242,7 @@ mod tests {
     fn resolve_path_tilde_prefix() {
         let resolved = resolve_path("~/games/RTML");
         assert!(!resolved.to_string_lossy().starts_with('~'));
-        assert!(resolved.to_string_lossy().ends_with("games/RTML"));
+        assert!(resolved.ends_with("games/RTML"));
     }
 
     #[test]

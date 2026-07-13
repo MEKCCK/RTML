@@ -1,3 +1,10 @@
+// RTML - Rust TUI Minecraft Launcher
+// Copyright (C) 2026 RTML Contributors
+// SPDX-License-Identifier: GPL-3.0-or-later
+//
+// This is a modified version of rmcl (https://github.com/objz/rmcl).
+// Modifications made in 2026.
+
 // app state: holds everything the TUI needs between frames.
 // this is basically the "god struct" of the UI. not ideal, but ratatui
 // kinda pushes you into this pattern since you need mutable access
@@ -21,6 +28,7 @@ pub struct App {
     pub(super) show_help: bool,
     pub(super) focused: FocusedArea,
     pub(super) pre_overlay_focused: FocusedArea,
+    pub(super) pre_popup_focused: FocusedArea,
     pub(super) content_tab: widgets::content::ContentTab,
     pub(super) instances_state: instances::State,
     pub(super) mods_state: widgets::content::list::ContentListState,
@@ -31,7 +39,6 @@ pub struct App {
     pub(super) logs_state: widgets::logs_viewer::LogsState,
     pub(super) account_state: widgets::account::AccountState,
     pub(super) settings_state: widgets::settings::SettingsState,
-    pub(super) mod_download_state: widgets::mod_download::ModDownloadState,
     pub(super) picker: ratatui_image::picker::Picker,
     pub(super) instance_manager: InstanceManager,
     pub(super) log_overlay_scroll: usize,
@@ -61,10 +68,8 @@ pub enum FocusedArea {
     Overview,
     OverviewExpanded,
     Popup,
-    ImportPopup,
     ErrorPopup,
     ConfirmDelete,
-    ModDownload,
 }
 
 impl App {
@@ -84,6 +89,7 @@ impl App {
             show_help: false,
             focused: FocusedArea::default(),
             pre_overlay_focused: FocusedArea::default(),
+            pre_popup_focused: FocusedArea::default(),
             content_tab: widgets::content::ContentTab::default(),
             instances_state,
             mods_state: widgets::content::list::ContentListState::default(),
@@ -93,7 +99,6 @@ impl App {
             logs_state: widgets::logs_viewer::LogsState::default(),
             account_state: widgets::account::AccountState::default(),
             settings_state: widgets::settings::SettingsState::new(manager.meta_dir.clone()),
-            mod_download_state: widgets::mod_download::ModDownloadState::default(),
             screenshots_state: {
                 let mut s = widgets::screenshots_grid::ScreenshotsState::default();
                 s.font_size = picker.font_size();

@@ -1,6 +1,14 @@
+// RTML - Rust TUI Minecraft Launcher
+// Copyright (C) 2026 RTML Contributors
+// SPDX-License-Identifier: GPL-3.0-or-later
+//
+// This is a modified version of rmcl (https://github.com/objz/rmcl).
+// Modifications made in 2026.
+
 // scanning and toggling instance content (mods, resource packs, shaders, worlds).
 // minecraft uses a ".disabled" suffix convention for disabled content, so this leans on that heavily.
 
+pub mod install;
 pub mod mods;
 pub mod resource_packs;
 pub mod shaders;

@@ -1,9 +1,10 @@
 [paths]
-# where instances are stored
-instances_dir = "~/.local/share/RTML/instances"
+# where instances are stored (empty = platform default: ~/.local/share/RTML/instances on Linux,
+# %APPDATA%/RTML/instances on Windows, ~/Library/Application Support/RTML/instances on macOS)
+instances_dir = ""
 
 # metadata, cache, whatever else ends up there
-meta_dir = "~/.local/share/RTML/meta"
+meta_dir = ""
 
 # optional java override (empty = uses JAVA_HOME)
 java_path = ""

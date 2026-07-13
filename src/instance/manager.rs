@@ -1,3 +1,10 @@
+// RTML - Rust TUI Minecraft Launcher
+// Copyright (C) 2026 RTML Contributors
+// SPDX-License-Identifier: GPL-3.0-or-later
+//
+// This is a modified version of rmcl (https://github.com/objz/rmcl).
+// Modifications made in 2026.
+
 // CRUD for instances: create, delete, rename, load, save.
 // creation is the heavy one since it downloads the game, assets, and libraries.
 
@@ -20,6 +27,8 @@ pub enum InstanceError {
     Io(#[from] std::io::Error),
     #[error("JSON error: {0}")]
     Json(#[from] serde_json::Error),
+    #[error("ZIP error: {0}")]
+    Zip(#[from] zip::result::ZipError),
     #[error("Download error: {0}")]
     Download(#[from] crate::net::NetError),
     #[error("Installer error: {0}")]

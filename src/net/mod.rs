@@ -1,12 +1,24 @@
-// networking layer: http client, file downloads, and shared utilities
-// for fetching game assets from mojang, mod loaders, and modrinth.
+// RTML - Rust TUI Minecraft Launcher
+// Copyright (C) 2026 RTML Contributors
+// SPDX-License-Identifier: GPL-3.0-or-later
+//
+// This is a modified version of rmcl (https://github.com/objz/rmcl).
+// Modifications made in 2026.
 
+// networking layer: http client, file downloads, and shared utilities
+// for fetching game assets from mod loaders and mojang.
+
+pub mod download;
 pub mod fabric;
 pub mod forge;
-pub mod modrinth;
 pub mod mojang;
 pub mod neoforge;
 pub mod quilt;
+
+pub mod modrinth;
+
+pub use download::queue::{DownloadProgress, DownloadQueue, DownloadTask};
+pub use download::source::SourceManager;
 
 use reqwest::Client;
 use serde::de::DeserializeOwned;
@@ -25,6 +37,22 @@ pub enum NetError {
     StatusError { status: u16, url: String },
     #[error("Task failed: {0}")]
     TaskFailed(String),
+    #[error("SHA1 mismatch: {0}")]
+    Sha1Mismatch(String),
+    #[error("Download failed: {0}")]
+    DownloadFailed(String),
+    #[error("Network unreachable")]
+    NetworkUnreachable,
+    #[error("Invalid config: {0}")]
+    InvalidConfig(String),
+    #[error("Authentication failed: {0}")]
+    AuthFailed(String),
+}
+
+impl From<tokio::task::JoinError> for NetError {
+    fn from(e: tokio::task::JoinError) -> Self {
+        NetError::TaskFailed(e.to_string())
+    }
 }
 
 #[derive(Clone)]
@@ -58,6 +86,10 @@ impl HttpClient {
 
     pub fn inner(&self) -> &Client {
         &self.inner
+    }
+
+    pub fn from_inner(client: Client) -> Self {
+        Self { inner: client }
     }
 
     pub async fn get(&self, url: &str) -> Result<reqwest::Response, NetError> {

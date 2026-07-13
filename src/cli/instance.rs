@@ -1,3 +1,10 @@
+// RTML - Rust TUI Minecraft Launcher
+// Copyright (C) 2026 RTML Contributors
+// SPDX-License-Identifier: GPL-3.0-or-later
+//
+// This is a modified version of rmcl (https://github.com/objz/rmcl).
+// Modifications made in 2026.
+
 // instance lifecycle: create, delete, rename, launch, config, desktop shortcuts.
 // the heaviest handler in the CLI since instances are the core concept.
 use std::io;
