@@ -15,6 +15,7 @@ use std::sync::LazyLock;
 
 pub mod settings;
 pub mod theme;
+pub(crate) mod migrate;
 
 pub use settings::Config;
 

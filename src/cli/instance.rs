@@ -15,7 +15,7 @@ use clap::ArgMatches;
 use super::utils::{confirm, required_arg};
 use crate::cli::output::{format_datetime, print_table};
 use crate::instance::{InstanceManager, ModLoader};
-use crate::running::RunState;
+use crate::instance::running::RunState;
 
 type CliResult = Result<(), Box<dyn std::error::Error>>;
 const LOCAL_CONFIG_PROFILE: &str = "instance default";
@@ -150,7 +150,7 @@ async fn launch_instance(matches: &ArgMatches) -> CliResult {
     // poll until the game process exits. in CLI mode this blocks here
     // so the user gets a proper exit code at the end.
     loop {
-        match crate::running::get(name) {
+        match crate::instance::running::get(name) {
             Some(RunState::Crashed(Some(code))) => {
                 println!("Game exited with status {}", code);
                 break;

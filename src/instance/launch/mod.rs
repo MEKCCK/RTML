@@ -639,8 +639,8 @@ pub async fn launch(
     let config_sync_active = config_sync_lock.is_some();
 
     let (kill_tx, kill_rx) = tokio::sync::oneshot::channel::<()>();
-    crate::running::register_kill(&name, kill_tx);
-    crate::running::set_state(&name, crate::running::RunState::Starting);
+    crate::instance::running::register_kill(&name, kill_tx);
+    crate::instance::running::set_state(&name, crate::instance::running::RunState::Starting);
     tracing::info!(
         "[{}] Starting Minecraft ({} {})",
         name,
@@ -675,15 +675,15 @@ pub async fn launch(
     let mut child = match cmd.spawn() {
         Ok(c) => c,
         Err(e) => {
-            crate::running::cleanup_kill_sender(&name);
-            crate::running::remove(&name);
+            crate::instance::running::cleanup_kill_sender(&name);
+            crate::instance::running::remove(&name);
             tracing::error!("[{}] Failed to spawn Minecraft process: {}", name, e);
             return Err(LaunchError::Io(e));
         }
     };
     tracing::debug!("[{}] Spawned Minecraft process", name);
 
-    crate::running::set_state(&name, crate::running::RunState::Running);
+    crate::instance::running::set_state(&name, crate::instance::running::RunState::Running);
 
     let log_file_path = crate::instance::log_files::create_log_file(instances_dir, &name);
     match &log_file_path {
@@ -812,14 +812,14 @@ pub async fn launch(
         drop(config_sync_lock);
 
         if code == Some(0) || killed_by_user {
-            crate::running::remove(&name_for_task);
+            crate::instance::running::remove(&name_for_task);
             tracing::debug!(
                 "[{}] Cleared running state after normal exit (killed_by_user={})",
                 name_for_task,
                 killed_by_user
             );
         } else {
-            crate::running::set_state(&name_for_task, crate::running::RunState::Crashed(code));
+            crate::instance::running::set_state(&name_for_task, crate::instance::running::RunState::Crashed(code));
             crate::tui::error_buffer::push_error(crate::tui::error_buffer::ErrorEvent {
                 id: 0,
                 level: tracing::Level::ERROR,
@@ -841,8 +841,8 @@ pub async fn launch(
                 e
             );
         }
-        crate::running::push_last_played(&name_for_task, chrono::Utc::now());
-        crate::running::cleanup_kill_sender(&name_for_task);
+        crate::instance::running::push_last_played(&name_for_task, chrono::Utc::now());
+        crate::instance::running::cleanup_kill_sender(&name_for_task);
     });
 
     Ok(())
@@ -870,7 +870,7 @@ fn emit_parsed_instance_log(
             tracing::trace!(target: "mc_instance", "[{}] {}", instance_name, text);
         }
     }
-    crate::instance_logs::push_event(instance_name, event);
+    crate::instance::logs::push_event(instance_name, event);
 }
 
 #[cfg(test)]

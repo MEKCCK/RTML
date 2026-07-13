@@ -455,12 +455,12 @@ impl App {
                 KeyCode::Enter | KeyCode::Char(' ') => {
                     if let Some(instance) = self.instances_state.selected_instance().cloned() {
                         let can_launch = matches!(
-                            crate::running::get(&instance.name),
-                            None | Some(crate::running::RunState::Crashed(_))
+                            crate::instance::running::get(&instance.name),
+                            None | Some(crate::instance::running::RunState::Crashed(_))
                         );
                         if can_launch {
-                            crate::running::remove(&instance.name);
-                            crate::instance_logs::clear(&instance.name);
+                            crate::instance::running::remove(&instance.name);
+                            crate::instance::logs::clear(&instance.name);
                             self.spawn_launch(instance);
                         }
                     }
@@ -517,7 +517,7 @@ impl App {
                 // 终止运行中的实例
                 KeyCode::Esc => {
                     if let Some(instance) = self.instances_state.selected_instance() {
-                        crate::running::send_kill(&instance.name);
+                        crate::instance::running::send_kill(&instance.name);
                     }
                 }
                 // 导航

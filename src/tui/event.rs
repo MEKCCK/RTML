@@ -322,7 +322,7 @@ impl App {
 
     pub(super) fn spawn_launch(&self, instance: crate::instance::InstanceConfig) {
         use crate::instance::launch;
-        use crate::running;
+        use crate::instance::running;
 
         let instance = match self.instance_manager.load_one(&instance.name) {
             Ok(config) => config,
@@ -376,7 +376,7 @@ impl App {
     }
 
     fn drain_pending_last_played(&mut self) {
-        for (name, time) in crate::running::drain_last_played() {
+        for (name, time) in crate::instance::running::drain_last_played() {
             for inst in &mut self.instances_state.instances {
                 if inst.name == name {
                     inst.last_played = Some(time);

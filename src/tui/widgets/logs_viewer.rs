@@ -147,11 +147,11 @@ impl LogsState {
             return;
         };
         if !matches!(
-            crate::running::get(name),
+            crate::instance::running::get(name),
             Some(
-                crate::running::RunState::Authenticating
-                    | crate::running::RunState::Starting
-                    | crate::running::RunState::Running
+                crate::instance::running::RunState::Authenticating
+                    | crate::instance::running::RunState::Starting
+                    | crate::instance::running::RunState::Running
             )
         ) {
             return;
@@ -181,10 +181,10 @@ impl LogsState {
     fn has_live(&self) -> bool {
         let name = self.loaded_for.as_deref().unwrap_or("");
         matches!(
-            crate::running::get(name),
-            Some(crate::running::RunState::Running)
-                | Some(crate::running::RunState::Starting)
-                | Some(crate::running::RunState::Crashed(_))
+            crate::instance::running::get(name),
+            Some(crate::instance::running::RunState::Running)
+                | Some(crate::instance::running::RunState::Starting)
+                | Some(crate::instance::running::RunState::Crashed(_))
         )
     }
 
@@ -562,7 +562,7 @@ fn render_viewer(
 
     let all_lines: Vec<ViewerLine> = if is_live {
         let name = state.loaded_for.as_deref().unwrap_or("");
-        crate::instance_logs::get_entries(name)
+        crate::instance::logs::get_entries(name)
             .into_iter()
             .map(|line| ViewerLine {
                 text: line.text,

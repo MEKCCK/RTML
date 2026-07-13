@@ -23,15 +23,12 @@ pub mod auth;
 mod cli;
 pub mod config;
 pub mod instance;
-pub mod instance_logs;
 pub mod launch_profile;
-mod migrate;
 pub mod net;
-pub mod running;
 pub mod tui;
 
 pub use cli::init as cli_init;
-pub use migrate::run_legacy_rename as migrate_legacy_rename;
+pub use config::migrate::run_legacy_rename as migrate_legacy_rename;
 
 /// 许可证全文，编译时嵌入。
 pub const LICENSE_TEXT: &str = include_str!("../LICENSE");

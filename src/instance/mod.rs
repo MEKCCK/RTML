@@ -15,8 +15,10 @@ pub mod import;
 pub mod launch;
 pub mod loader;
 pub mod log_files;
+pub mod logs;
 pub mod manager;
 pub mod models;
+pub mod running;
 pub mod screenshots;
 
 pub use content::{
