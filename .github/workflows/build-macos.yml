@@ -48,6 +48,16 @@ jobs:
       - name: Build and bundle .app
         run: cargo bundle --release --target ${{ matrix.target }}
 
+      - name: Verify .app exists
+        run: |
+          APP_PATH="target/${{ matrix.target }}/release/bundle/osx/RTML.app"
+          if [ ! -d "$APP_PATH" ]; then
+            echo "ERROR: .app bundle not found at $APP_PATH"
+            ls -la target/${{ matrix.target }}/release/bundle/osx/ 2>/dev/null || echo "  (bundle/osx directory missing)"
+            exit 1
+          fi
+          echo "RTML.app verified at $APP_PATH"
+
       - name: Create .dmg
         run: |
           create-dmg \

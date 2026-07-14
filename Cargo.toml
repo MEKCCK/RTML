@@ -10,7 +10,8 @@ license = "GPL-3.0-or-later"
 [package.metadata.bundle]
 name = "RTML"
 identifier = "com.rtml.launcher"
-icon = "RTML.icns"
+# icon must be an array, even for a single file
+icon = ["RTML.icns"]
 category = "public.app-category.utilities"
 
 [package.metadata.wix]
