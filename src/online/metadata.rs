@@ -66,6 +66,8 @@ impl TerracottaMetadata {
             ("windows", "x86_64") => Some("windows-x86_64"),
             ("linux", "x86_64") => Some("linux-x86_64"),
             ("linux", "aarch64") => Some("linux-arm64"),
+            ("macos", "x86_64") => Some("macos-x86_64"),
+            ("macos", "aarch64") => Some("macos-arm64"),
             _ => None,
         }
     }

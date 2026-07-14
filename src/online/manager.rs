@@ -362,7 +362,11 @@ impl TerracottaManager {
         {
             scan_windows_netstat(pid).await
         }
-        #[cfg(not(any(target_os = "linux", target_os = "windows")))]
+        #[cfg(target_os = "macos")]
+        {
+            scan_macos_lsof(pid).await
+        }
+        #[cfg(not(any(target_os = "linux", target_os = "windows", target_os = "macos")))]
         {
             let _ = pid;
             Err("unsupported platform".to_string())
@@ -443,6 +447,38 @@ async fn scan_windows_netstat(pid: u32) -> Result<Vec<u16>, String> {
         let local = parts[1];
         if let Some(port_str) = local.rsplit(':').next() {
             if let Ok(port) = port_str.parse::<u16>() {
+                ports.push(port);
+            }
+        }
+    }
+
+    ports.sort();
+    ports.dedup();
+    Ok(ports)
+}
+
+#[cfg(target_os = "macos")]
+async fn scan_macos_lsof(pid: u32) -> Result<Vec<u16>, String> {
+    use tokio::process::Command;
+
+    let output = Command::new("lsof")
+        .args(["-iTCP", "-sTCP:LISTEN", "-P", "-n", "-p", &pid.to_string()])
+        .output()
+        .await
+        .map_err(|e| format!("lsof failed: {e}"))?;
+
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    let mut ports = Vec::new();
+
+    for line in stdout.lines().skip(1) {
+        let parts: Vec<&str> = line.split_whitespace().collect();
+        if parts.len() < 9 {
+            continue;
+        }
+        // parts[8] is the NAME column, format: IP:PORT or [IP]:PORT
+        let name = parts[8];
+        if let Some(port_str) = name.rsplit(':').next() {
+            if let Ok(port) = port_str.trim_end_matches(')').parse::<u16>() {
                 ports.push(port);
             }
         }
