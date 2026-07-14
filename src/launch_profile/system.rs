@@ -1,10 +1,3 @@
-// RTML - Rust TUI Minecraft Launcher
-// Copyright (C) 2026 RTML Contributors
-// SPDX-License-Identifier: GPL-3.0-or-later
-//
-// This is a modified version of rmcl (https://github.com/objz/rmcl).
-// Modifications made in 2026.
-
 // system-detection helpers shared by launch and install paths. mojang
 // names some things differently from rust's std::env::consts (e.g. macOS
 // is "osx" in mojang profile rules), so this module is the single source

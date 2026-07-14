@@ -1,10 +1,3 @@
-// RTML - Rust TUI Minecraft Launcher
-// Copyright (C) 2026 RTML Contributors
-// SPDX-License-Identifier: GPL-3.0-or-later
-//
-// This is a modified version of rmcl (https://github.com/objz/rmcl).
-// Modifications made in 2026.
-
 // the instance list on the left side of the UI.
 // handles search/filter, scrollbar sync, and inline renaming.
 // each row shows instance name + "last played" or current run state.

@@ -1,18 +1,3 @@
-// RTML - Rust TUI Minecraft Launcher
-// Copyright (C) 2026 RTML Contributors
-//
-// This program is free software: you can redistribute it and/or modify
-// it under the terms of the GNU General Public License as published by
-// the Free Software Foundation, either version 3 of the License, or
-// (at your option) any later version.
-//
-// SPDX-License-Identifier: GPL-3.0-or-later
-//
-// This is a modified version of rmcl (https://github.com/objz/rmcl).
-// Modifications made in 2026.
-//
-// Portions of code derived from BonNext (https://github.com/anomalyco/BonNextMinecraftLauncher-Rust).
-
 // crate root. main.rs is a thin wrapper that imports the two entry points
 // re-exported below; everything else stays crate-private. integration tests
 // in tests/ that need to reach in deeper can use `RTML::auth`, `RTML::net`,

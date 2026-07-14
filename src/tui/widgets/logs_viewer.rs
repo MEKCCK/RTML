@@ -1,10 +1,3 @@
-// RTML - Rust TUI Minecraft Launcher
-// Copyright (C) 2026 RTML Contributors
-// SPDX-License-Identifier: GPL-3.0-or-later
-//
-// This is a modified version of rmcl (https://github.com/objz/rmcl).
-// Modifications made in 2026.
-
 // split-pane log viewer: file list on the left, log content on the right.
 // supports live log tailing when the instance is running, plus search
 // filtering in both the file list and the viewer pane.

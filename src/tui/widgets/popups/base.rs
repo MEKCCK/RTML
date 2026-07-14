@@ -1,10 +1,3 @@
-// RTML - Rust TUI Minecraft Launcher
-// Copyright (C) 2026 RTML Contributors
-// SPDX-License-Identifier: GPL-3.0-or-later
-//
-// This is a modified version of rmcl (https://github.com/objz/rmcl).
-// Modifications made in 2026.
-
 // base frame that all popups render inside. handles the border, title bar,
 // keybind footer, and optional search indicator. content is injected via closure
 // so each popup type only worries about its inner area.

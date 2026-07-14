@@ -1,10 +1,3 @@
-// RTML - Rust TUI Minecraft Launcher
-// Copyright (C) 2026 RTML Contributors
-// SPDX-License-Identifier: GPL-3.0-or-later
-//
-// This is a modified version of rmcl (https://github.com/objz/rmcl).
-// Modifications made in 2026.
-
 // lists available game versions, optionally filtered by mod loader support.
 // fetches the mojang manifest and cross-references with loader APIs
 // to show only versions that actually work with a given loader.

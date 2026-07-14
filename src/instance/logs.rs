@@ -1,10 +1,3 @@
-// RTML - Rust TUI Minecraft Launcher
-// Copyright (C) 2026 RTML Contributors
-// SPDX-License-Identifier: GPL-3.0-or-later
-//
-// This is a modified version of rmcl (https://github.com/objz/rmcl).
-// Modifications made in 2026.
-
 // in-memory ring buffer for stdout/stderr from running mc instances.
 // capped at 2000 lines per instance so it doesn't eat all the RAM
 // if someone leaves a server running for a week. you're welcome.

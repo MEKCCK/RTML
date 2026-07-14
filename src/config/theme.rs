@@ -1,10 +1,3 @@
-// RTML - Rust TUI Minecraft Launcher
-// Copyright (C) 2026 RTML Contributors
-// SPDX-License-Identifier: GPL-3.0-or-later
-//
-// This is a modified version of rmcl (https://github.com/objz/rmcl).
-// Modifications made in 2026.
-
 // theme resolution: loads theme.toml, picks a base theme (builtin or custom file),
 // then layers user color overrides on top. supports loading .toml themes from the
 // config/theme/ directory or by absolute path.

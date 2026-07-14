@@ -1,10 +1,3 @@
-// RTML - Rust TUI Minecraft Launcher
-// Copyright (C) 2026 RTML Contributors
-// SPDX-License-Identifier: GPL-3.0-or-later
-//
-// This is a modified version of rmcl (https://github.com/objz/rmcl).
-// Modifications made in 2026.
-
 // generic scrollable list for content items (mods, resource packs, shaders, worlds).
 // supports toggling items on/off by renaming files with .disabled suffix,
 // search filtering, per-instance caching, and directory change detection.

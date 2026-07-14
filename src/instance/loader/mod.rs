@@ -1,10 +1,3 @@
-// RTML - Rust TUI Minecraft Launcher
-// Copyright (C) 2026 RTML Contributors
-// SPDX-License-Identifier: GPL-3.0-or-later
-//
-// This is a modified version of rmcl (https://github.com/objz/rmcl).
-// Modifications made in 2026.
-
 // mod loader installation. each loader (fabric, forge, neoforge, quilt, vanilla)
 // implements the same trait so the UI can treat them uniformly: pick game version,
 // pick loader version, install. the actual installation strategies differ wildly

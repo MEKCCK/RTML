@@ -1,6 +1,6 @@
 # Maintainer: MEKCCK <3504638270@qq.com>
 pkgname=rtml
-pkgver=0.1.0
+pkgver=1.0.0
 pkgrel=2
 pkgdesc="RTML - Rust TUI Minecraft Launcher"
 arch=('x86_64')

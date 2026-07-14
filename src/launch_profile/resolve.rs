@@ -1,10 +1,3 @@
-// RTML - Rust TUI Minecraft Launcher
-// Copyright (C) 2026 RTML Contributors
-// SPDX-License-Identifier: GPL-3.0-or-later
-//
-// This is a modified version of rmcl (https://github.com/objz/rmcl).
-// Modifications made in 2026.
-
 // resolves the `inheritsFrom` chain of a parsed `LaunchProfile`. mojang's
 // version JSON allows a profile to inherit from another profile by id; the
 // loaders (forge / neoforge / fabric / quilt) use this to layer their

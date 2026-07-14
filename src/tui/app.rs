@@ -1,10 +1,3 @@
-// RTML - Rust TUI Minecraft Launcher
-// Copyright (C) 2026 RTML Contributors
-// SPDX-License-Identifier: GPL-3.0-or-later
-//
-// This is a modified version of rmcl (https://github.com/objz/rmcl).
-// Modifications made in 2026.
-
 // app state: holds everything the TUI needs between frames.
 // this is basically the "god struct" of the UI. not ideal, but ratatui
 // kinda pushes you into this pattern since you need mutable access

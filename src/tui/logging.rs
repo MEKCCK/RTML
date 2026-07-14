@@ -1,10 +1,3 @@
-// RTML - Rust TUI Minecraft Launcher
-// Copyright (C) 2026 RTML Contributors
-// SPDX-License-Identifier: GPL-3.0-or-later
-//
-// This is a modified version of rmcl (https://github.com/objz/rmcl).
-// Modifications made in 2026.
-
 // sets up the tracing subscriber stack: file logging, tui-logger widget, and
 // our custom StatusLayer that feeds WARN/ERROR events into the error toast system.
 // also keeps an in-memory ring buffer of log lines for the log overlay viewer.

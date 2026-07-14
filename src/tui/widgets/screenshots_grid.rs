@@ -1,10 +1,3 @@
-// RTML - Rust TUI Minecraft Launcher
-// Copyright (C) 2026 RTML Contributors
-// SPDX-License-Identifier: GPL-3.0-or-later
-//
-// This is a modified version of rmcl (https://github.com/objz/rmcl).
-// Modifications made in 2026.
-
 // responsive grid of screenshot thumbnails rendered directly in the terminal.
 // images load lazily on background threads as they scroll into view,
 // and get converted to terminal graphics via ratatui-image protocols.
