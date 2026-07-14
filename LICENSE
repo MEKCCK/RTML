@@ -695,4 +695,8 @@ Additional code referenced/ported from BonNext (https://github.com/anomalyco/Bon
 
 Copyright (C) 2024-2026 anomalyco (BonNext author)
 
+The Terracotta online multiplayer (陶瓦联机) feature is modeled after
+HMCL (Hello Minecraft! Launcher, https://github.com/HMCL-dev/HMCL),
+Copyright (C) 2025 huangyuhui and contributors.
+
 ========================================================================
