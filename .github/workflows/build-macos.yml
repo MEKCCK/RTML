@@ -25,11 +25,54 @@ jobs:
       - name: Cache Cargo dependencies
         uses: Swatinem/rust-cache@v2
 
-      - name: Build release
-        run: cargo build --release --target ${{ matrix.target }}
+      - name: Install cargo-bundle
+        run: cargo install cargo-bundle
 
-      - name: Upload artifact
+      - name: Install create-dmg
+        run: brew install create-dmg
+
+      - name: Generate .icns icon
+        run: |
+          mkdir -p RTML.iconset
+          sips -z 16 16 assets/icon.png --out RTML.iconset/icon_16x16.png
+          sips -z 32 32 assets/icon.png --out RTML.iconset/icon_16x16@2x.png
+          sips -z 32 32 assets/icon.png --out RTML.iconset/icon_32x32.png
+          sips -z 64 64 assets/icon.png --out RTML.iconset/icon_32x32@2x.png
+          sips -z 128 128 assets/icon.png --out RTML.iconset/icon_128x128.png
+          sips -z 256 256 assets/icon.png --out RTML.iconset/icon_128x128@2x.png
+          sips -z 256 256 assets/icon.png --out RTML.iconset/icon_256x256.png
+          sips -z 512 512 assets/icon.png --out RTML.iconset/icon_256x256@2x.png
+          sips -z 512 512 assets/icon.png --out RTML.iconset/icon_512x512.png
+          iconutil -c icns RTML.iconset -o RTML.icns
+
+      - name: Build and bundle .app
+        run: cargo bundle --release --target ${{ matrix.target }}
+
+      - name: Create .dmg
+        run: |
+          create-dmg \
+            --volname "RTML" \
+            --window-pos 200 120 \
+            --window-size 800 400 \
+            --icon-size 80 \
+            --app-drop-link 600 185 \
+            "RTML-${{ matrix.target }}.dmg" \
+            "target/${{ matrix.target }}/release/bundle/osx/RTML.app"
+
+      - name: Upload binary
         uses: actions/upload-artifact@v4
         with:
           name: rtml-${{ matrix.target }}
           path: target/${{ matrix.target }}/release/rtml
+
+      - name: Upload .app
+        uses: actions/upload-artifact@v4
+        with:
+          name: RTML-${{ matrix.target }}.app
+          path: target/${{ matrix.target }}/release/bundle/osx/RTML.app
+
+      - name: Upload .dmg
+        uses: actions/upload-artifact@v4
+        with:
+          name: RTML-${{ matrix.target }}.dmg
+          path: RTML-${{ matrix.target }}.dmg
