@@ -89,6 +89,16 @@ impl App {
             return Ok(());
         }
 
+        // ── 联机弹窗 ──
+        if self.show_online_popup {
+            crate::tui::online::handle_key(&key_event);
+            if !crate::tui::online::is_active() {
+                self.show_online_popup = false;
+                self.focused = self.pre_popup_focused;
+            }
+            return Ok(());
+        }
+
         // ── 确认删除弹窗 ──
         if self.focused == FocusedArea::ConfirmDelete {
             match key_event.code {
@@ -513,6 +523,12 @@ impl App {
                 KeyCode::Char('i') => {
                     self.pre_popup_focused = self.focused;
                     self.instances_state.show_import_popup = true;
+                }
+                // 联机
+                KeyCode::Char('t') => {
+                    self.pre_popup_focused = self.focused;
+                    self.show_online_popup = true;
+                    crate::tui::online::open();
                 }
                 // 终止运行中的实例
                 KeyCode::Esc => {

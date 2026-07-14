@@ -12,6 +12,7 @@ pub mod error_buffer;
 mod event;
 mod input;
 pub mod logging;
+pub mod online;
 pub mod progress;
 mod render;
 pub mod widgets;

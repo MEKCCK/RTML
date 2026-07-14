@@ -683,6 +683,10 @@ pub async fn launch(
     };
     tracing::debug!("[{}] Spawned Minecraft process", name);
 
+    if let Some(pid) = child.id() {
+        crate::instance::running::register_pid(&name, pid);
+    }
+
     crate::instance::running::set_state(&name, crate::instance::running::RunState::Running);
 
     let log_file_path = crate::instance::log_files::create_log_file(instances_dir, &name);
@@ -799,6 +803,7 @@ pub async fn launch(
         };
         let _ = parser_task.await;
         tracing::info!("[{}] Exited with code {:?}", name_for_task, code);
+        crate::instance::running::unregister_pid(&name_for_task);
 
         if config_sync_active
             && let Err(e) = crate::instance::config_sync::finish(

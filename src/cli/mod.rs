@@ -27,6 +27,8 @@ pub async fn init() {
         if let Err(e) = crate::tui::show().await {
             tracing::error!("TUI error: {}", e);
         }
+        // Kill terracotta process on launcher exit
+        crate::tui::online::disconnect();
         return;
     }
 

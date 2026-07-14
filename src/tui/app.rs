@@ -49,6 +49,7 @@ pub struct App {
     pub(super) throbber_tick: u8,
     pub(super) error_effects: HashMap<u64, ErrorEffectState>,
     pub(super) pending_editor: Option<std::path::PathBuf>,
+    pub(super) show_online_popup: bool,
 }
 
 // lifecycle of an error toast animation: slide in -> sit there -> fade out
@@ -70,6 +71,7 @@ pub enum FocusedArea {
     Popup,
     ErrorPopup,
     ConfirmDelete,
+    Online,
 }
 
 impl App {
@@ -114,6 +116,7 @@ impl App {
             throbber_tick: 0,
             error_effects: HashMap::new(),
             pending_editor: None,
+            show_online_popup: false,
         }
     }
 }

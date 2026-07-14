@@ -139,6 +139,11 @@ impl App {
             let area = confirm_popup_area(frame.area(), &target);
             frame.render_widget(ConfirmPopup::for_target(&target), area);
         }
+
+        if self.show_online_popup {
+            let area = crate::tui::online::popup_rect(frame.area());
+            crate::tui::online::render(frame, area);
+        }
     }
 
     // full-screen log viewer with search highlighting and auto-scroll.
@@ -327,6 +332,10 @@ impl App {
             Line::from(vec![
                 Span::styled("    i", Style::default().fg(theme.text()).add_modifier(Modifier::BOLD)),
                 Span::styled("             导入整合包", Style::default().fg(theme.text_dim())),
+            ]),
+            Line::from(vec![
+                Span::styled("    t", Style::default().fg(theme.text()).add_modifier(Modifier::BOLD)),
+                Span::styled("             局域网联机", Style::default().fg(theme.text_dim())),
             ]),
             Line::from(vec![
                 Span::styled("    d", Style::default().fg(theme.text()).add_modifier(Modifier::BOLD)),

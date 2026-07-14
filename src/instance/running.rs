@@ -37,6 +37,11 @@ type KillSenders = Arc<Mutex<HashMap<String, tokio::sync::oneshot::Sender<()>>>>
 pub static KILL_SENDERS: LazyLock<KillSenders> =
     LazyLock::new(|| Arc::new(Mutex::new(HashMap::new())));
 
+// tracks PIDs of running game instances
+type PidMap = Arc<Mutex<HashMap<String, u32>>>;
+pub static RUNNING_PIDS: LazyLock<PidMap> =
+    LazyLock::new(|| Arc::new(Mutex::new(HashMap::new())));
+
 pub fn set_state(name: &str, state: RunState) {
     if let Ok(mut map) = RUNNING.lock() {
         map.insert(name.to_string(), state);
@@ -100,6 +105,24 @@ pub fn cleanup_kill_sender(name: &str) {
     if let Ok(mut map) = KILL_SENDERS.lock() {
         map.remove(name);
     }
+}
+
+pub fn register_pid(name: &str, pid: u32) {
+    if let Ok(mut map) = RUNNING_PIDS.lock() {
+        map.insert(name.to_string(), pid);
+    }
+}
+
+pub fn unregister_pid(name: &str) {
+    if let Ok(mut map) = RUNNING_PIDS.lock() {
+        map.remove(name);
+    }
+}
+
+pub fn running_instance_pid() -> Option<u32> {
+    let pids = RUNNING_PIDS.lock().ok()?;
+    // Return the first running instance's PID
+    pids.values().next().copied()
 }
 
 #[cfg(test)]
