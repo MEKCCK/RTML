@@ -133,11 +133,6 @@ impl App {
             widgets::popups::import_modpack::render(frame, area);
         }
 
-        if self.instances_state.show_online_popup {
-            let area = widgets::popups::online::popup_rect(frame.area());
-            widgets::popups::online::render(frame, area);
-        }
-
         if self.focused == FocusedArea::ConfirmDelete
             && let Some(target) = confirm_popup::pending_target()
         {
@@ -332,10 +327,6 @@ impl App {
             Line::from(vec![
                 Span::styled("    i", Style::default().fg(theme.text()).add_modifier(Modifier::BOLD)),
                 Span::styled("             导入整合包", Style::default().fg(theme.text_dim())),
-            ]),
-            Line::from(vec![
-                Span::styled("    t", Style::default().fg(theme.text()).add_modifier(Modifier::BOLD)),
-                Span::styled("             联机 (Terracotta)", Style::default().fg(theme.text_dim())),
             ]),
             Line::from(vec![
                 Span::styled("    d", Style::default().fg(theme.text()).add_modifier(Modifier::BOLD)),

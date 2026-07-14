@@ -40,9 +40,6 @@ impl App {
                 self.refresh_instances();
             }
 
-            self.drain_online_action();
-            self.poll_online_state();
-
             self.dismiss_expired_errors();
 
             // drain all the channels from background tasks.
@@ -394,87 +391,6 @@ impl App {
         for (idx, img) in pending {
             let proto = self.picker.new_resize_protocol(img);
             self.screenshots_state.set_protocol(idx, proto);
-        }
-    }
-
-    fn drain_online_action(&self) {
-        use crate::tui::widgets::popups::online::{OnlineAction, take_action};
-        use crate::tui::widgets::popups::online::ONLINE_STATE;
-        let Some(action) = take_action() else {
-            return;
-        };
-        let state = std::sync::Arc::new(std::sync::Mutex::new(Some(action)));
-        tokio::task::spawn_blocking(move || {
-            let action = state.lock().unwrap().take().unwrap();
-            match action {
-                OnlineAction::StartHost { player } => {
-                    crate::online::start_host(&player);
-                }
-                OnlineAction::JoinRoom { room_code } => {
-                    let ok = crate::online::start_join(&room_code);
-                    if !ok {
-                        if let Ok(mut s) = ONLINE_STATE.lock() {
-                            s.step = crate::tui::widgets::popups::online::OnlineStep::Error(
-                                "房间码无效".to_owned(),
-                            );
-                        }
-                    }
-                }
-                OnlineAction::Disconnect => {
-                    crate::online::stop();
-                }
-            }
-        });
-    }
-
-    fn poll_online_state(&mut self) {
-        if !self.instances_state.show_online_popup {
-            return;
-        }
-        use crate::tui::widgets::popups::online::OnlineStep;
-        use crate::tui::widgets::popups::online::ONLINE_STATE;
-        let terracotta_state = crate::online::get_state();
-        let state_str = terracotta_state.to_string();
-        let mut ui_state = match ONLINE_STATE.lock() {
-            Ok(s) => s,
-            Err(_) => return,
-        };
-        ui_state.state_json = state_str;
-
-        match terracotta_state["state"].as_str() {
-            Some("host-ok") => {
-                if let Some(code) = terracotta_state["room"].as_str() {
-                    match &ui_state.step {
-                        OnlineStep::Hosting | OnlineStep::HostOk { .. } => {}
-                        _ => {
-                            ui_state.step = OnlineStep::HostOk { room_code: code.to_owned() };
-                        }
-                    }
-                }
-            }
-            Some("guest-ok") => {
-                if let Some(url) = terracotta_state["url"].as_str() {
-                    match &ui_state.step {
-                        OnlineStep::Joining | OnlineStep::Joined { .. } => {}
-                        _ => {
-                            ui_state.step = OnlineStep::Joined { url: url.to_owned() };
-                        }
-                    }
-                }
-            }
-            Some("exception") => {
-                let msg = match terracotta_state["type"].as_i64() {
-                    Some(0) => "无法连接到房主",
-                    Some(1) => "连接被重置",
-                    Some(2) => "访客连接异常",
-                    Some(3) => "房主连接异常",
-                    Some(4) => "服务器连接断开",
-                    Some(5) => "服务器响应异常",
-                    _ => "未知错误",
-                };
-                ui_state.step = OnlineStep::Error(msg.to_owned());
-            }
-            _ => {}
         }
     }
 }

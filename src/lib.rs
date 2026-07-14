@@ -25,7 +25,6 @@ pub mod config;
 pub mod instance;
 pub mod launch_profile;
 pub mod net;
-pub mod online;
 pub mod tui;
 
 pub use cli::init as cli_init;

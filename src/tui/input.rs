@@ -164,8 +164,6 @@ impl App {
                 widgets::popups::mod_download::handle_key(&key_event, &mut self.instances_state);
             } else if self.instances_state.show_import_popup {
                 widgets::popups::import_modpack::handle_key(&key_event, &mut self.instances_state);
-            } else if self.instances_state.show_online_popup {
-                widgets::popups::online::handle_key(&key_event, &mut self.instances_state);
             }
             if !self.instances_state.wants_popup() {
                 self.focused = self.pre_popup_focused;
@@ -515,11 +513,6 @@ impl App {
                 KeyCode::Char('i') => {
                     self.pre_popup_focused = self.focused;
                     self.instances_state.show_import_popup = true;
-                }
-                // 联机 (Terracotta)
-                KeyCode::Char('t') | KeyCode::Char('T') => {
-                    self.pre_popup_focused = self.focused;
-                    self.instances_state.show_online_popup = true;
                 }
                 // 终止运行中的实例
                 KeyCode::Esc => {

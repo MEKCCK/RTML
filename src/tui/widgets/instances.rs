@@ -54,7 +54,6 @@ pub struct State {
     pub show_popup: bool,
     pub show_download_popup: bool,
     pub show_import_popup: bool,
-    pub show_online_popup: bool,
     pub search: SearchState,
     pub renaming: Option<String>,
 }
@@ -69,7 +68,6 @@ impl State {
             show_popup: false,
             show_download_popup: false,
             show_import_popup: false,
-            show_online_popup: false,
             search: SearchState::default(),
             renaming: None,
         };
@@ -140,7 +138,7 @@ impl State {
     }
 
     pub fn wants_popup(&self) -> bool {
-        self.show_popup || self.show_download_popup || self.show_import_popup || self.show_online_popup
+        self.show_popup || self.show_download_popup || self.show_import_popup
     }
 
     pub fn remove_instance(&mut self, name: &str) {

@@ -14,7 +14,6 @@ pub mod error;
 pub mod import_modpack;
 pub mod mod_download;
 pub mod new_instance;
-pub mod online;
 
 use ratatui::layout::Rect;
 
