@@ -1,3 +1,33 @@
+// ========================================================================
+//                     项目许可说明 / License Notice
+// ========================================================================
+//
+// 本项目 RustedTuiMcLauncher (RTML) 基于 rmcl 项目开发。
+// Original code derived from rmcl (https://github.com/objz/rmcl).
+//
+// This is a modified version of rmcl. Modifications made in 2026 by RTML Contributors.
+//
+// Copyright (C) 2024-2026 objz (rmcl original author)
+// Copyright (C) 2026 RTML Contributors
+//
+// 本项目包含 rmcl 的原始代码以及 RTML 的新增功能。
+// This project contains original code from rmcl and additional features by RTML.
+//
+// 所有代码均采用 GPL-3.0 许可证授权。
+// All code is licensed under the GNU General Public License v3.0.
+//
+// 部分代码还参考/移植自 BonNext (https://github.com/anomalyco/BonNextMinecraftLauncher-Rust)。
+// Additional code referenced/ported from BonNext (https://github.com/anomalyco/BonNextMinecraftLauncher-Rust).
+//
+// Copyright (C) 2024-2026 anomalyco (BonNext author)
+//
+// The Terracotta online multiplayer (陶瓦联机) feature is modeled after
+// HMCL (Hello Minecraft! Launcher, https://github.com/HMCL-dev/HMCL),
+// Copyright (C) 2025 huangyuhui and contributors.
+//
+// ========================================================================
+
+
 // generic scrollable list for content items (mods, resource packs, shaders, worlds).
 // supports toggling items on/off by renaming files with .disabled suffix,
 // search filtering, per-instance caching, and directory change detection.
@@ -1242,6 +1272,7 @@ fn square_icon_columns(rows: u16, font_size: (u16, u16)) -> u16 {
 // used both by watch_dir to initialize known state and by the watcher
 // thread to detect changes. when ext is empty (worlds), only directories
 // are included.
+
 fn read_dir_stems(dir: &std::path::Path, ext: &str) -> HashMap<String, (std::path::PathBuf, bool)> {
     let mut map = HashMap::new();
     let Ok(read_dir) = std::fs::read_dir(dir) else {
