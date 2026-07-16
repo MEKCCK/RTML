@@ -28,6 +28,12 @@ jobs:
       - name: Install cargo-bundle
         run: cargo install cargo-bundle
 
+      - name: Remove untrusted Homebrew taps (aws/tap)
+        run: |
+          if brew tap | grep -q '^aws/tap$'; then
+            brew untap aws/tap || true
+          fi
+
       - name: Install create-dmg
         run: brew install create-dmg
 
