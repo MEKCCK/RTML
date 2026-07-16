@@ -26,16 +26,16 @@ path = "src/main.rs"
 
 [dependencies]
 async-trait = "0.1"
-chrono = { version = "0.4.39", features = ["serde"] }
-clap = "4.5.27"
+chrono = { version = "0.4.45", features = ["serde"] }
+clap = "4.6.2"
 color-eyre = "0.6.3"
-config = "0.15.6"
+config = "0.15.25"
 crossterm = "0.29.0"
 dirs-next = "2.0.0"
-log = "0.4"
+log = "0.4.33"
 ratatui = { version = "0.30.0", features = ["serde"] }
 ratatui-themekit = { version = "0.6", features = ["serde"] }
-ratatui-textarea = { version = "0.9.1", features = ["crossterm"] }
+ratatui-textarea = { version = "0.9.2", features = ["crossterm"] }
 reqwest = { version = "0.12", default-features = false, features = ["json", "stream", "rustls-tls"] }
 serde = { version = "1.0.217", features = ["derive"] }
 serde_json = "1.0"
@@ -47,25 +47,25 @@ tokio = { version = "1", features = ["full"] }
 tracing = "0.1"
 tracing-appender = "0.2"
 tracing-subscriber = { version = "0.3", features = ["env-filter"] }
-tui-popup = "0.7"
-tui-prompts = "0.6"
-tui-logger = { version = "0.18", features = ["tracing-support"] }
-tui-scrollview = "0.6"
+tui-popup = "0.7.6"
+tui-prompts = "0.6.7"
+tui-logger = { version = "0.18.3", features = ["tracing-support"] }
+tui-scrollview = "0.6.7"
 tui-widget-list = "0.15"
-ratatui-image = { version = "10.0.6", default-features = false, features = ["crossterm"] }
+ratatui-image = { version = "11.0.6", default-features = false, features = ["crossterm"] }
 image = { version = "0.25", default-features = false, features = ["png"] }
 zip = "8.5.1"
 minecraft-msa-auth = "0.4.0"
 oauth2 = "5.0.0"
-open = "5"
-which = "8.0.2"
+open = "5.4.0"
+which = "8.0.5"
 dirs = "6.0.0"
 notify = "8"
-regex = "1"
+regex = "1.13.1"
 fast-strip-ansi = "0.13"
 libcasr = "2.13"
-sha2 = "0.10"
-sha1 = "0.10"
+sha2 = "0.11.0"
+sha1 = "0.11.0"
 hex = "0.4"
 urlencoding = "2.1"
 flate2 = "1"
@@ -85,7 +85,7 @@ lto = "thin"
 
 [dev-dependencies]
 tempfile = "3"
-insta = "1"
+insta = "1.48.0"
 wiremock = "0.6"
-rstest = "0.23"
+rstest = "0.26.1"
 image = { version = "0.25", default-features = false, features = ["png"] }
