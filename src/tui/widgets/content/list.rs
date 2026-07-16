@@ -189,7 +189,7 @@ impl ContentListState {
                             rows as u16,
                         )
                     };
-                    let side = rows * u32::from(font_size.1.max(1));
+                    let side = rows * u32::from(font_size.height.max(1));
                     let image = use_image_protocol.then(|| {
                         image.resize_exact(side, side, image::imageops::FilterType::Lanczos3)
                     });
@@ -1262,9 +1262,9 @@ fn protocol_icon_columns(
     square_icon_columns(rows, picker.font_size())
 }
 
-fn square_icon_columns(rows: u16, font_size: (u16, u16)) -> u16 {
-    let width = u32::from(font_size.0.max(1));
-    let height = u32::from(font_size.1.max(1));
+fn square_icon_columns(rows: u16, font_size: ratatui_image::FontSize) -> u16 {
+    let width = u32::from(font_size.width.max(1));
+    let height = u32::from(font_size.height.max(1));
     ((u32::from(rows) * height + width / 2) / width).max(1) as u16
 }
 
@@ -1310,16 +1310,17 @@ fn read_dir_stems(dir: &std::path::Path, ext: &str) -> HashMap<String, (std::pat
 #[cfg(test)]
 mod tests {
     use super::square_icon_columns;
+    use ratatui_image::FontSize;
 
     #[test]
     fn square_columns_follow_terminal_cell_ratio() {
-        assert_eq!(square_icon_columns(3, (8, 16)), 6);
-        assert_eq!(square_icon_columns(3, (8, 18)), 7);
-        assert_eq!(square_icon_columns(6, (8, 18)), 14);
+        assert_eq!(square_icon_columns(3, FontSize::new(8, 16)), 6);
+        assert_eq!(square_icon_columns(3, FontSize::new(8, 18)), 7);
+        assert_eq!(square_icon_columns(6, FontSize::new(8, 18)), 14);
     }
 
     #[test]
     fn square_columns_handle_missing_cell_size() {
-        assert_eq!(square_icon_columns(3, (0, 0)), 3);
+        assert_eq!(square_icon_columns(3, FontSize::new(0, 0)), 3);
     }
 }

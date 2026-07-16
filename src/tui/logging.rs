@@ -221,7 +221,7 @@ mod tests {
     }
 
     #[test]
-    fn RTML_events_are_general_app_logs() {
+    fn rtml_events_are_general_app_logs() {
         assert!(should_record_app_log(
             "RTML::instance::manager",
             Level::TRACE

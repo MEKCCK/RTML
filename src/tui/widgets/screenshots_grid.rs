@@ -44,7 +44,7 @@ use ratatui::{
     text::Span,
     widgets::{Paragraph, Scrollbar, ScrollbarOrientation, ScrollbarState},
 };
-use ratatui_image::{Resize, StatefulImage, protocol::StatefulProtocol};
+use ratatui_image::{FontSize, Resize, StatefulImage, protocol::StatefulProtocol};
 
 use crate::config::theme::THEME;
 use crate::instance::screenshots::ScreenshotEntry;
@@ -71,7 +71,7 @@ pub struct ScreenshotsState {
     visible_rows: usize,
     pub scrollbar_state: ScrollbarState,
     pub search: super::search::SearchState,
-    pub font_size: (u16, u16),
+    pub font_size: FontSize,
     pending_entries: PendingScreenshots,
     pending_images: Arc<Mutex<Vec<(usize, image::DynamicImage)>>>,
 }
@@ -90,7 +90,7 @@ impl Default for ScreenshotsState {
             visible_rows: 2,
             scrollbar_state: ScrollbarState::default(),
             search: super::search::SearchState::default(),
-            font_size: (8, 16),
+            font_size: FontSize::new(8, 16),
             pending_entries: Arc::new(Mutex::new(None)),
             pending_images: Arc::new(Mutex::new(Vec::new())),
         }
@@ -360,8 +360,8 @@ pub fn render(frame: &mut Frame, area: Rect, state: &mut ScreenshotsState, is_fo
         .map(|e| (e.width, e.height))
         .unwrap_or((1920, 1080));
     let (fw, fh) = (
-        state.font_size.0.max(1) as u32,
-        state.font_size.1.max(1) as u32,
+        state.font_size.width.max(1) as u32,
+        state.font_size.height.max(1) as u32,
     );
     let img_rows = (cell_width as u32 * fw * img_h / (fh * img_w)).max(2) as u16;
     let cell_height = img_rows + NAME_ROW_HEIGHT + GAP;
