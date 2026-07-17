@@ -68,7 +68,7 @@ jobs:
       - name: Install Arch build dependencies
         run: |
           pacman -Syu --noconfirm
-          pacman -S --noconfirm base-devel rust git pkgconf openssl wget python zstd fakeroot
+          pacman -S --noconfirm base-devel rust git pkgconf openssl wget python zstd fakeroot sudo
 
       - name: Create non-root build user
         run: |
@@ -80,7 +80,7 @@ jobs:
           set -euo pipefail
           cd "$GITHUB_WORKSPACE"
           mkdir -p artifacts
-          su builduser -s /bin/bash -c 'cd "$GITHUB_WORKSPACE" && fakeroot makepkg --noconfirm -f -p scripts/PKGBUILD'
+          sudo -u builduser fakeroot makepkg --noconfirm -f -p scripts/PKGBUILD
           find . -maxdepth 1 -name '*.pkg.tar.zst' -exec cp {} artifacts/ \;
 
       - name: Upload Arch artifacts
