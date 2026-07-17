@@ -1,14 +1,15 @@
-<div align="center">
-  <img src="assets/icon.png" width="128" alt="RTML Logo" />
-  <h1>RTML — Rusted TUI Minecraft Launcher</h1>
-  <p>v1.0.0 — 一个基于 rmcl 和 BonNext 开发的 Rust TUI Minecraft 启动器</p>
-</div>
+# RTML — Rusted TUI Minecraft Launcher
+
+![RTML Logo](assets/icon.png)
+
+v1.0.0 — 一个基于 rmcl 和 BonNext 开发的 Rust TUI Minecraft 启动器
 
 ## 简介
 
 RTML 是一个使用 Rust 编写的终端用户界面（TUI）Minecraft 启动器，基于 [rmcl](https://github.com/objz/rmcl) 项目开发，并移植了 [BonNext](https://github.com/anomalyco/BonNextMinecraftLauncher-Rust) 的额外功能。
 
 特色功能：
+
 - **Modrinth 集成** — 搜索、筛选、一键下载模组
 - **整合包导入** — 支持 Modrinth (.mrpack) 和 CurseForge 格式
 - **BMCLAPI 镜像加速** — 国内用户友好
@@ -30,14 +31,14 @@ cargo build --release
 ## 打包
 
 | 平台 | 脚本 | 用法 |
-|------|------|------|
+| --- | --- | --- |
 | Arch Linux | `scripts/PKGBUILD` | 本地打包：`makepkg` |
 | Windows | `scripts/build.bat` | 双击或终端运行 |
 
 ## 快捷键
 
 | 按键 | 功能 |
-|------|------|
+| --- | --- |
 | `1-4` | 切换面板 |
 | `t` | 局域网联机 (Terracotta) |
 | `m` | 打开模组下载 (Modrinth) |
@@ -54,6 +55,7 @@ cargo build --release
 本项目基于 GPL-3.0 协议开源。
 
 基于以下上游项目修改：
+
 - [rmcl](https://github.com/objz/rmcl) — 原始 Rust TUI 启动器框架
 - [BonNext](https://github.com/anomalyco/BonNextMinecraftLauncher-Rust) — Modrinth 集成、下载系统、整合包导入等代码移植
 - [HMCL](https://github.com/HMCL-dev/HMCL) — 陶瓦联机架构参考 (TerracottaManager、状态机、守护进程生命周期)
