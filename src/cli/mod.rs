@@ -44,6 +44,10 @@ use clap::{Arg, ArgAction, ArgGroup, Command};
 pub async fn init() {
     let matches = build_command().get_matches();
 
+    if matches.get_flag("hm") {
+        crate::set_hm_mode(true);
+    }
+
     // no subcommand means the user just ran `RTML` bare, so fall through to TUI mode
     if matches.subcommand().is_none() {
         // force-init the theme so it's ready before the TUI renders
@@ -79,6 +83,12 @@ fn build_command() -> Command {
         .version(env!("CARGO_PKG_VERSION"))
         .subcommand_required(false)
         .arg_required_else_help(false)
+        .arg(
+            Arg::new("hm")
+                .long("hm")
+                .action(ArgAction::SetTrue)
+                .help("允许在不依赖微软账户的情况下使用离线账户"),
+        )
         .subcommand(
             Command::new("instance")
                 .about("Manage launcher instances")

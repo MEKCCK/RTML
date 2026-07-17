@@ -128,7 +128,7 @@ pub fn handle_key(key_event: &KeyEvent, state: &mut AccountState) -> bool {
                 true
             }
             KeyCode::Char('o') | KeyCode::Char('2') => {
-                state.add_mode = if state.store.has_microsoft_account() {
+                state.add_mode = if state.store.has_microsoft_account() || crate::is_hm_mode() {
                     AddMode::OfflineNameInput(String::new())
                 } else {
                     AddMode::OfflineBlocked
@@ -145,7 +145,7 @@ pub fn handle_key(key_event: &KeyEvent, state: &mut AccountState) -> bool {
             KeyCode::Enter => {
                 let trimmed = name.trim().to_string();
                 if !trimmed.is_empty() {
-                    if state.store.has_microsoft_account() {
+                    if state.store.has_microsoft_account() || crate::is_hm_mode() {
                         let account = auth::create_offline_account(&trimmed);
                         state.store.add(account);
                         if state.list_state.selected.is_none() && !state.store.accounts.is_empty() {
@@ -441,7 +441,7 @@ fn render_offline_popup(frame: &mut Frame, name: &str) {
         content: Box::new(move |inner, buf| {
             let line = if name.is_empty() {
                 Line::from(vec![
-                    Span::styled("Username...", Style::default().fg(dim_color)),
+                    Span::styled("用户名...", Style::default().fg(dim_color)),
                     Span::styled(
                         "\u{2588}",
                         Style::default()
@@ -477,7 +477,7 @@ fn render_offline_blocked_popup(frame: &mut Frame) {
 
     PopupFrame {
         title: Line::from(Span::styled(
-            " Offline Account ",
+            " 离线账户 ",
             Style::default()
                 .fg(border_color)
                 .add_modifier(Modifier::BOLD),
@@ -488,7 +488,7 @@ fn render_offline_blocked_popup(frame: &mut Frame) {
         keybinds: Some(keybind_line(&[("Enter", " 关闭")])),
         search_line: None,
         content: Box::new(move |inner, buf| {
-            Paragraph::new("Add a Microsoft account that owns Minecraft first.")
+            Paragraph::new("请先添加一个拥有 Minecraft 的微软账户。")
                 .style(Style::default().fg(text_color))
                 .render(inner, buf);
         }),
@@ -510,7 +510,7 @@ fn render_device_code_popup(frame: &mut Frame, info: &DeviceCodeInfo) {
 
     PopupFrame {
         title: Line::from(Span::styled(
-            " Microsoft Login ",
+            " 微软登录 ",
             Style::default()
                 .fg(border_color)
                 .add_modifier(Modifier::BOLD),
@@ -523,13 +523,13 @@ fn render_device_code_popup(frame: &mut Frame, info: &DeviceCodeInfo) {
         content: Box::new(move |inner, buf| {
             let text = if code.is_empty() {
                 vec![Line::from(Span::styled(
-                    "Connecting to Microsoft...",
+                    "正在连接微软账户...",
                     Style::default().fg(dim_color),
                 ))]
             } else {
                 vec![
                     Line::from(Span::styled(
-                        "Open this URL in your browser:",
+                        "请在浏览器中打开此链接：",
                         Style::default().fg(dim_color),
                     )),
                     Line::from(Span::styled(
@@ -540,7 +540,7 @@ fn render_device_code_popup(frame: &mut Frame, info: &DeviceCodeInfo) {
                     )),
                     Line::from(""),
                     Line::from(vec![
-                        Span::styled("Enter code: ", Style::default().fg(dim_color)),
+                        Span::styled("输入验证码：", Style::default().fg(dim_color)),
                         Span::styled(
                             code.as_str(),
                             Style::default()

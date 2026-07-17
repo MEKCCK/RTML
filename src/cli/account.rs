@@ -146,9 +146,9 @@ fn add_offline_account<T: AccountStoreLike>(store: &mut T, username: &str) -> Cl
     if username.is_empty() {
         return Err(io::Error::other("offline username cannot be empty").into());
     }
-    if !store.has_microsoft_account() {
+    if !store.has_microsoft_account() && !crate::is_hm_mode() {
         return Err(io::Error::other(
-            "add a Microsoft account that owns Minecraft before adding offline accounts",
+            "请先添加一个拥有 Minecraft 的微软账户，再添加离线账户",
         )
         .into());
     }

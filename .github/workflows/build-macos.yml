@@ -1,12 +1,119 @@
-name: Build macOS
+name: Build and Release
 
 on:
   push:
     branches: [master]
   workflow_dispatch:
 
+permissions:
+  contents: write
+
 jobs:
-  build:
+  build-linux:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache Cargo dependencies
+        uses: Swatinem/rust-cache@v2
+
+      - name: Install packaging tools
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y build-essential pkg-config libssl-dev zip ruby ruby-dev rpm
+          gem install --no-document fpm
+
+      - name: Build Linux binary
+        run: cargo build --release
+
+      - name: Prepare Linux packages
+        run: |
+          set -euo pipefail
+          VERSION=$(python3 - <<'PY'
+          import tomllib
+          from pathlib import Path
+          data = tomllib.loads(Path('Cargo.toml').read_text())
+          print(data['package']['version'])
+          PY
+          )
+          mkdir -p artifacts dist/linux-root/usr/bin dist/linux-root/usr/share/applications dist/linux-root/usr/share/icons/hicolor/256x256/apps dist/linux-root/usr/share/icons/hicolor/512x512/apps
+          install -m 0755 target/release/rtml dist/linux-root/usr/bin/rtml
+          install -m 0644 assets/rtml.desktop dist/linux-root/usr/share/applications/rtml.desktop
+          install -m 0644 assets/icon.png dist/linux-root/usr/share/icons/hicolor/256x256/apps/rtml.png
+          install -m 0644 assets/icon.png dist/linux-root/usr/share/icons/hicolor/512x512/apps/rtml.png
+          tar -czf "artifacts/rtml-linux-x86_64-${VERSION}.tar.gz" -C dist/linux-root .
+          fpm -s dir -t deb -n rtml -v "$VERSION" -a amd64 --license GPL-3.0 --description "RTML - Rust TUI Minecraft Launcher" -C dist/linux-root --prefix / usr/bin/rtml usr/share/applications/rtml.desktop usr/share/icons/hicolor/256x256/apps/rtml.png usr/share/icons/hicolor/512x512/apps/rtml.png
+          mv "rtml_${VERSION}_amd64.deb" "artifacts/rtml_${VERSION}_amd64.deb"
+          fpm -s dir -t rpm -n rtml -v "$VERSION" -a x86_64 --license GPL-3.0 --description "RTML - Rust TUI Minecraft Launcher" -C dist/linux-root --prefix / usr/bin/rtml usr/share/applications/rtml.desktop usr/share/icons/hicolor/256x256/apps/rtml.png usr/share/icons/hicolor/512x512/apps/rtml.png
+          mv "rtml-${VERSION}-1.x86_64.rpm" "artifacts/rtml-${VERSION}-1.x86_64.rpm"
+
+      - name: Upload Linux artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: linux-artifacts
+          path: artifacts/*
+
+  build-arch:
+    runs-on: ubuntu-latest
+    container:
+      image: archlinux:latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install Arch build dependencies
+        run: |
+          pacman -Syu --noconfirm
+          pacman -S --noconfirm base-devel rust git pkgconf openssl wget python zstd
+
+      - name: Build Arch package
+        run: |
+          set -euo pipefail
+          mkdir -p artifacts
+          makepkg --noconfirm -f -p scripts/PKGBUILD
+          find . -maxdepth 1 -name '*.pkg.tar.zst' -exec cp {} artifacts/ \;
+
+      - name: Upload Arch artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: arch-artifacts
+          path: artifacts/*
+
+  build-windows:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: x86_64-pc-windows-gnu
+
+      - name: Install mingw-w64
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y gcc-mingw-w64-x86-64 zip
+
+      - name: Build Windows binary
+        run: cargo build --release --target x86_64-pc-windows-gnu
+
+      - name: Package Windows archive
+        run: |
+          mkdir -p artifacts
+          zip -j artifacts/rtml-windows-x86_64.zip target/x86_64-pc-windows-gnu/release/rtml.exe
+
+      - name: Upload Windows artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: windows-artifacts
+          path: artifacts/*
+
+  build-macos:
     strategy:
       matrix:
         target:
@@ -75,20 +182,33 @@ jobs:
             "RTML-${{ matrix.target }}.dmg" \
             "target/${{ matrix.target }}/release/bundle/osx/RTML.app"
 
-      - name: Upload binary
+      - name: Upload macOS artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: rtml-${{ matrix.target }}
-          path: target/${{ matrix.target }}/release/rtml
+          name: macos-${{ matrix.target }}
+          path: |
+            target/${{ matrix.target }}/release/rtml
+            target/${{ matrix.target }}/release/bundle/osx/RTML.app
+            RTML-${{ matrix.target }}.dmg
 
-      - name: Upload .app
-        uses: actions/upload-artifact@v4
+  publish-release:
+    needs: [build-linux, build-arch, build-windows, build-macos]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
         with:
-          name: RTML-${{ matrix.target }}.app
-          path: target/${{ matrix.target }}/release/bundle/osx/RTML.app
+          path: release-assets
+          merge-multiple: true
 
-      - name: Upload .dmg
-        uses: actions/upload-artifact@v4
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
         with:
-          name: RTML-${{ matrix.target }}.dmg
-          path: RTML-${{ matrix.target }}.dmg
+          tag_name: auto-${{ github.run_number }}
+          name: RTML Build ${{ github.run_number }}
+          body: |
+            Automated release for RTML.
+
+            Includes binaries and packages for Linux, Arch Linux, Windows, and macOS.
+          files: |
+            release-assets/*

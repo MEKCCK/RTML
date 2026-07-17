@@ -76,6 +76,14 @@ pub enum LaunchError {
     ConfigSync(#[from] crate::instance::config_sync::ConfigSyncError),
 }
 
+fn offline_launch_allowed(
+    account_type: &AccountType,
+    has_microsoft_account: bool,
+    hm_mode: bool,
+) -> bool {
+    account_type == &AccountType::Microsoft || has_microsoft_account || hm_mode
+}
+
 fn build_game_args(
     profile: &LaunchProfile,
     rule_ctx: &RuleContext<'_>,
@@ -594,11 +602,14 @@ pub async fn launch(
         return Err(LaunchError::Auth("No account selected".to_owned()));
     };
 
-    // offline accounts can only launch if a microsoft account exists
-    // (proves the user owns minecraft).
-    if acc.account_type != AccountType::Microsoft && !account_store.has_microsoft_account() {
+    // 离线账户默认需要一个已拥有 Minecraft 的微软账户；在兼容模式下则允许跳过该限制。
+    if !offline_launch_allowed(
+        &acc.account_type,
+        account_store.has_microsoft_account(),
+        crate::is_hm_mode(),
+    ) {
         return Err(LaunchError::Auth(
-            "Offline accounts require a Microsoft account that owns Minecraft".to_owned(),
+            "离线账户需要先添加一个拥有 Minecraft 的微软账户".to_owned(),
         ));
     }
 
@@ -915,6 +926,14 @@ mod tests {
         #[case] expected: Option<u32>,
     ) {
         assert_eq!(parse_java_major_version(output), expected);
+    }
+
+    #[test]
+    fn offline_launch_is_allowed_when_hm_mode_is_enabled() {
+        assert!(!offline_launch_allowed(&AccountType::Offline, false, false));
+        assert!(offline_launch_allowed(&AccountType::Offline, false, true));
+        assert!(offline_launch_allowed(&AccountType::Offline, true, false));
+        assert!(offline_launch_allowed(&AccountType::Microsoft, false, false));
     }
 
     #[test]

@@ -46,6 +46,18 @@ pub mod tui;
 pub use cli::init as cli_init;
 pub use config::migrate::run_legacy_rename as migrate_legacy_rename;
 
+use std::sync::atomic::{AtomicBool, Ordering};
+
+static HM_MODE: AtomicBool = AtomicBool::new(false);
+
+pub fn set_hm_mode(enabled: bool) {
+    HM_MODE.store(enabled, Ordering::Relaxed);
+}
+
+pub fn is_hm_mode() -> bool {
+    HM_MODE.load(Ordering::Relaxed)
+}
+
 /// 许可证全文，编译时嵌入。
 
 pub const LICENSE_TEXT: &str = include_str!("../LICENSE");
