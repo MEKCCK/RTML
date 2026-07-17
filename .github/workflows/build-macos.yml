@@ -25,7 +25,7 @@ jobs:
         run: |
           sudo apt-get update
           sudo apt-get install -y build-essential pkg-config libssl-dev zip ruby ruby-dev rpm
-          gem install --no-document fpm
+          sudo gem install --no-document fpm
 
       - name: Build Linux binary
         run: cargo build --release
@@ -68,13 +68,13 @@ jobs:
       - name: Install Arch build dependencies
         run: |
           pacman -Syu --noconfirm
-          pacman -S --noconfirm base-devel rust git pkgconf openssl wget python zstd
+          pacman -S --noconfirm base-devel rust git pkgconf openssl wget python zstd fakeroot
 
       - name: Build Arch package
         run: |
           set -euo pipefail
           mkdir -p artifacts
-          makepkg --noconfirm -f -p scripts/PKGBUILD
+          fakeroot makepkg --noconfirm -f -p scripts/PKGBUILD
           find . -maxdepth 1 -name '*.pkg.tar.zst' -exec cp {} artifacts/ \;
 
       - name: Upload Arch artifacts
