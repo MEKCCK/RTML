@@ -73,13 +73,15 @@ jobs:
       - name: Create non-root build user
         run: |
           useradd -m builduser
-          chown -R builduser:builduser /github/workspace
+          WORKSPACE="${GITHUB_WORKSPACE:-$(pwd)}"
+          chown -R builduser:builduser "$WORKSPACE"
 
       - name: Build Arch package
         run: |
           set -euo pipefail
           mkdir -p artifacts
-          su builduser -c 'cd /github/workspace && fakeroot makepkg --noconfirm -f -p scripts/PKGBUILD'
+          WORKSPACE="${GITHUB_WORKSPACE:-$(pwd)}"
+          su builduser -c "cd \"$WORKSPACE\" && fakeroot makepkg --noconfirm -f -p scripts/PKGBUILD"
           find . -maxdepth 1 -name '*.pkg.tar.zst' -exec cp {} artifacts/ \;
 
       - name: Upload Arch artifacts
