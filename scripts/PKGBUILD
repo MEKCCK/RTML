@@ -1,4 +1,5 @@
 # Maintainer: MEKCCK <3504638270@qq.com>
+# 注意：此 PKGBUILD 仅供本地构建，GitHub Actions 已停止 Arch 包自动打包流程。
 pkgname=rtml
 pkgver=1.0.0
 pkgrel=2

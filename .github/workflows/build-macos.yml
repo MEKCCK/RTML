@@ -57,38 +57,6 @@ jobs:
           name: linux-artifacts
           path: artifacts/*
 
-  build-arch:
-    runs-on: ubuntu-latest
-    container:
-      image: archlinux:latest
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-
-      - name: Install Arch build dependencies
-        run: |
-          pacman -Syu --noconfirm
-          pacman -S --noconfirm base-devel rust git pkgconf openssl wget python zstd fakeroot sudo
-
-      - name: Create non-root build user
-        run: |
-          useradd -m builduser
-          chown -R builduser:builduser "$GITHUB_WORKSPACE"
-
-      - name: Build Arch package
-        run: |
-          set -euo pipefail
-          cd "$GITHUB_WORKSPACE"
-          mkdir -p artifacts
-          sudo -u builduser fakeroot makepkg --noconfirm -f -p scripts/PKGBUILD
-          find . -maxdepth 1 -name '*.pkg.tar.zst' -exec cp {} artifacts/ \;
-
-      - name: Upload Arch artifacts
-        uses: actions/upload-artifact@v4
-        with:
-          name: arch-artifacts
-          path: artifacts/*
-
   build-windows:
     runs-on: ubuntu-latest
     steps:
@@ -198,7 +166,7 @@ jobs:
             RTML-${{ matrix.target }}.dmg
 
   publish-release:
-    needs: [build-linux, build-arch, build-windows, build-macos]
+    needs: [build-linux, build-windows, build-macos]
     runs-on: ubuntu-latest
     steps:
       - name: Download all artifacts

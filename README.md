@@ -31,7 +31,7 @@ cargo build --release
 
 | 平台 | 脚本 | 用法 |
 |------|------|------|
-| Arch Linux | `scripts/PKGBUILD` | `makepkg` |
+| Arch Linux | `scripts/PKGBUILD` | 本地打包：`makepkg` |
 | Windows | `scripts/build.bat` | 双击或终端运行 |
 
 ## 快捷键
