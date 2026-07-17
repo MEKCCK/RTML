@@ -70,11 +70,16 @@ jobs:
           pacman -Syu --noconfirm
           pacman -S --noconfirm base-devel rust git pkgconf openssl wget python zstd fakeroot
 
+      - name: Create non-root build user
+        run: |
+          useradd -m builduser
+          chown -R builduser:builduser /github/workspace
+
       - name: Build Arch package
         run: |
           set -euo pipefail
           mkdir -p artifacts
-          fakeroot makepkg --noconfirm -f -p scripts/PKGBUILD
+          su builduser -c 'cd /github/workspace && fakeroot makepkg --noconfirm -f -p scripts/PKGBUILD'
           find . -maxdepth 1 -name '*.pkg.tar.zst' -exec cp {} artifacts/ \;
 
       - name: Upload Arch artifacts
